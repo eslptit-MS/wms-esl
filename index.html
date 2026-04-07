@@ -679,9 +679,24 @@ function doTx(){
   if(type==='in'){
     // ไม่จำกัด capacity — รับได้เกินที่ระบุใน layout
   } else {
-    const skuTotal=rows.filter(r=>r.sku===sku).reduce((s,r)=>s+r.qty,0);
-    if(!skuTotal){showToast(`ไม่พบ ${sku} ใน Zone ${zid}`,false);return;}
-    if(qty>skuTotal){showToast(`${sku} มีเพียง ${skuTotal.toLocaleString()} ${unit}`,false);return;}
+    // กรองตาม SKU และ Lot ให้ตรงกัน
+    const matchRows=rows.filter(r=>r.sku===sku&&(r.lot||'')===(lot||''));
+    const skuTotal=matchRows.reduce((s,r)=>s+r.qty,0);
+    // เช็คว่ามี lot ใดบ้างใน zone นี้สำหรับ sku นี้
+    const availLots=[...new Set(rows.filter(r=>r.sku===sku).map(r=>r.lot||''))];
+    if(!rows.filter(r=>r.sku===sku).length){
+      showToast(`ไม่พบ ${sku} ใน Zone ${zid}`,false);return;
+    }
+    if(!skuTotal){
+      const lotList=availLots.filter(l=>l).map(l=>`"${l}"`).join(', ');
+      if(lotList){
+        showToast(`${sku} มี Lot: ${lotList} กรุณาระบุ Lot ให้ตรง`,false);
+      } else {
+        showToast(`ไม่พบ ${sku} Lot "${lot}" ใน Zone ${zid}`,false);
+      }
+      return;
+    }
+    if(qty>skuTotal){showToast(`${sku} Lot "${lot}" มีเพียง ${skuTotal.toLocaleString()} ${unit}`,false);return;}
   }
 
   // disable button while saving
@@ -725,9 +740,10 @@ function commitTx(type,whid,zid,sku,lot,qty,unit,txData,whn){
     showToast(`✅ รับเข้า Zone ${zid} | ${sku} ${qty.toLocaleString()} ${unit} — บันทึกแล้ว`,true);
   } else {
     let rem=qty;
-    for(const r of rows.filter(r=>r.sku===sku)){if(rem<=0)break;const tk=Math.min(r.qty,rem);r.qty-=tk;rem-=tk;}
+    // ตัดเฉพาะ lot ที่ตรงกันเท่านั้น
+    for(const r of rows.filter(r=>r.sku===sku&&(r.lot||'')===(lot||''))){if(rem<=0)break;const tk=Math.min(r.qty,rem);r.qty-=tk;rem-=tk;}
     STOCK[whid][zid]=rows.filter(r=>r.qty>0);
-    showToast(`✅ เบิกออก Zone ${zid} | ${sku} ${qty.toLocaleString()} ${unit} — บันทึกแล้ว`,true);
+    showToast(`✅ เบิกออก Zone ${zid} | ${sku}${lot?' Lot '+lot:''} ${qty.toLocaleString()} ${unit} — บันทึกแล้ว`,true);
   }
   LOGS.push({...txData,wh:whn,formRef:type==='in'?'ESL-F-PE-36/00':'ESL-F-PE-37/00',recorded:nowStr()});
   fillSelects();renderMap();renderStats();renderStock();renderHist();
