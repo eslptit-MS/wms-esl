@@ -622,10 +622,12 @@ const ZONES={
   K:{cap:126,f:'6×7×3'},L:{cap:180,f:'6×10×3'},M:{cap:180,f:'6×10×3'},N:{cap:180,f:'6×10×3'},O:{cap:126,f:'6×7×3'},
   F:{cap:147,f:'7×7×3'},G:{cap:210,f:'7×10×3'},H:{cap:210,f:'7×10×3'},I:{cap:210,f:'7×10×3'},J:{cap:147,f:'7×7×3'},
   A:{cap:180,f:'6×10×3'},B:{cap:180,f:'6×10×3'},C:{cap:180,f:'6×10×3'},D:{cap:180,f:'6×10×3'},E:{cap:180,f:'6×10×3'},
+  NC:{cap:999999,f:'NC Hold'},
 };
-const ZID=Object.keys(ZONES);
+const ZID=Object.keys(ZONES).filter(function(z){return z!=='NC';});
 const STOCK={'78':{},'910':{}};
-ZID.forEach(id=>{STOCK['78'][id]=[];STOCK['910'][id]=[];});
+ZID.forEach(function(id){STOCK['78'][id]=[];STOCK['910'][id]=[];});
+STOCK['78']['NC']=[];STOCK['910']['NC']=[];
 const LOGS=[];
 let curWH='78', selZone=null, toastTimer=null;
 
@@ -873,13 +875,33 @@ function mkAisle(){
   const dR=document.createElement('div');dR.className='map-door';
   w.appendChild(dL);w.appendChild(ln);w.appendChild(dR);return w;
 }
+function mkNC(){
+  const wh=curWH;
+  const rows=STOCK[wh]['NC']||[];
+  const used=rows.reduce(function(s,r){return s+r.qty;},0);
+  const skus=[...new Set(rows.map(function(r){return r.sku;}))].slice(0,1).join('');
+  const el=document.createElement('div');
+  el.style.cssText='position:absolute;right:0;top:50%;transform:translateY(-50%);width:38px;cursor:pointer;background:#fef2f2;border:2px solid #dc2626;border-radius:6px;padding:4px 2px;text-align:center;z-index:2;';
+  el.innerHTML='<div style="font-size:9px;font-weight:700;color:#7f1d1d;line-height:1.2">NC</div><div style="font-size:8px;font-weight:700;color:#7f1d1d;line-height:1.2">Hold</div>'+(used>0?'<div style="font-size:8px;color:#dc2626;margin-top:2px">'+used+'</div>':'');
+  el.onclick=function(){openSheet('NC');};
+  return el;
+}
+function mkMidWithNC(topIds,botIds){
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:relative;';
+  const rowTop=mkRowM(topIds);
+  const rowBot=mkRowM(botIds);
+  const nc=mkNC();
+  wrap.appendChild(rowTop);
+  wrap.appendChild(rowBot);
+  wrap.appendChild(nc);
+  return wrap;
+}
 function renderMap(){
   const a=document.getElementById('mapArea');a.innerHTML='';
   a.appendChild(mkRowF(['P','Q','R','S','T']));
   a.appendChild(mkAisle());
-  a.appendChild(mkRowM(['K','L','M','N','O']));
-  const tg=document.createElement('div');tg.className='map-touch-gap';a.appendChild(tg);
-  a.appendChild(mkRowM(['F','G','H','I','J']));
+  a.appendChild(mkMidWithNC(['K','L','M','N','O'],['F','G','H','I','J']));
   a.appendChild(mkAisle());
   a.appendChild(mkRowF(['A','B','C','D','E']));
 }
@@ -887,13 +909,18 @@ function renderMap(){
 // ── Sheet ──
 function openSheet(id){
   selZone=curWH+'_'+id;
-  const rows=STOCK[curWH][id],used=zUsed(curWH,id),cap=ZONES[id].cap,p=pct(curWH,id),c=col(p);
-  document.getElementById('sheetZoneName').textContent=`Zone ${id}`;
-  document.getElementById('sheetZoneMeta').textContent=`${whName(curWH)} · ${ZONES[id].f} · ความจุ ${cap} ถุง`;
+  const isNC=id==='NC';
+  const rows=STOCK[curWH][id];
+  const used=isNC?zUsed(curWH,id):zUsed(curWH,id);
+  const cap=isNC?999999:ZONES[id].cap;
+  const p=isNC?0:pct(curWH,id);
+  const c=isNC?{bg:'#fef2f2',bar:'#dc2626',txt:'#7f1d1d',bd:'#fca5a5'}:col(p);
+  document.getElementById('sheetZoneName').textContent=isNC?'NC Hold':`Zone ${id}`;
+  document.getElementById('sheetZoneMeta').textContent=isNC?`${whName(curWH)} · NC Hold · ไม่จำกัด capacity`:`${whName(curWH)} · ${ZONES[id].f} · ความจุ ${cap} ถุง`;
   document.getElementById('sheetZonePct').style.color=c.txt;
-  document.getElementById('sheetZonePct').textContent=`${p}%`;
-  document.getElementById('sheetZoneAvail').textContent=`ว่างอยู่ ${cap-used} ถุง`;
-  document.getElementById('sheetProgress').style.cssText=`width:${p}%;background:${c.bar}`;
+  document.getElementById('sheetZonePct').textContent=isNC?'NC':`${p}%`;
+  document.getElementById('sheetZoneAvail').textContent=isNC?`มีสินค้า ${used} ชิ้น`:`ว่างอยู่ ${cap-used} ถุง`;
+  document.getElementById('sheetProgress').style.cssText=`width:${isNC?Math.min(100,Math.round(used/10)):p}%;background:${c.bar}`;
   let html='';
   if(!rows.length){html=`<div class="empty-zone">ยังไม่มีสินค้าใน Zone นี้</div>`;}
   else {
@@ -937,7 +964,7 @@ function renderStats(){
 // ── Selects ──
 function fillSelects(){
   const tz=document.getElementById('txZone');
-  tz.innerHTML=ZID.map(id=>`<option value="${id}">Zone ${id} (${ZONES[id].cap}ถุง)</option>`).join('');
+  tz.innerHTML=ZID.map(id=>`<option value="${id}">Zone ${id} (${ZONES[id].cap}ถุง)</option>`).join('')+'<option value="NC">NC Hold</option>';
   const sz=document.getElementById('stockZone');
   sz.innerHTML='<option value="">ทุก Zone</option>'+ZID.map(id=>`<option value="${id}">Zone ${id}</option>`).join('');
   const dt=document.getElementById('txDate');
@@ -1431,7 +1458,11 @@ function loadStockFromSheet(){
         res.data.forEach(function(r){
           var wh=r.wh==='คลัง 9-10'?'910':'78';
           if(!STOCK[wh]||!STOCK[wh][r.zone])return;
-          STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง'});
+          if(r.zone==='NC'){
+            STOCK[wh]['NC'].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง'});
+          } else if(STOCK[wh][r.zone]!==undefined){
+            STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง'});
+          }
         });
       }
       fillSelects();renderMap();renderStats();renderStock();renderHist();renderTankPage();updateTime();
