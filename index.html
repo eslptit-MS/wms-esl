@@ -456,6 +456,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
               <option value="">ทั้งหมด</option>
               <option value="in">รับเข้า (F-36)</option>
               <option value="out">เบิกออก (F-37)</option>
+              <option value="stock">Stock คงเหลือ</option>
             </select>
           </div>
         </div>
@@ -1404,6 +1405,8 @@ function filterLogs(logs){
 }
 
 function exportPreview(){
+  const expType=document.getElementById('expType').value;
+  if(expType==='stock'){exportStockPreview();return;}
   fetchLogsAndRun(function(logs){
     const rows=filterLogs(logs);
     const tf=document.getElementById('expType').value;
@@ -1432,6 +1435,8 @@ function exportPreview(){
 }
 
 function exportCSV(){
+  const expTypeSel=document.getElementById('expType').value;
+  if(expTypeSel==='stock'){exportStockCSV();return;}
   fetchLogsAndRun(function(logs){
     const rows=filterLogs(logs);
     if(!rows.length){showToast('ไม่พบข้อมูลในช่วงที่เลือก',false);return;}
@@ -1455,12 +1460,79 @@ function exportCSV(){
   });
 }
 
+// ── Stock Export helpers ──
+function initSkuFilter(){
+  // สร้าง SKU list จาก STOCK ทั้งหมด แล้วเติมใน #expSku ถ้ามี element
+  const el=document.getElementById('expSku');
+  if(!el)return;
+  const skus=allSkus().sort();
+  el.innerHTML='<option value="">SKU ทั้งหมด</option>'+skus.map(function(s){return'<option value="'+s+'">'+s+'</option>';}).join('');
+}
+
+function exportStockPreview(){
+  const wf=document.getElementById('expWH').value;
+  const skuF=(document.getElementById('expSku')&&document.getElementById('expSku').value)||'';
+  const el=document.getElementById('exportPreviewArea');
+  const rows=[];
+  ['78','910'].forEach(function(wh){
+    if(wf&&wh!==(wf==='คลัง 7-8'?'78':'910'))return;
+    ZID.forEach(function(z){
+      STOCK[wh][z].forEach(function(r){
+        if(skuF&&r.sku!==skuF)return;
+        rows.push({wh:whName(wh),zone:z,sku:r.sku,lot:r.lot||'',qty:r.qty||0,unit:r.unit||'ถุง'});
+      });
+    });
+    STOCK[wh]['NC'].forEach(function(r){
+      if(skuF&&r.sku!==skuF)return;
+      rows.push({wh:whName(wh),zone:'NC',sku:r.sku,lot:r.lot||'',qty:r.qty||0,unit:r.unit||'ถุง'});
+    });
+  });
+  if(!rows.length){el.innerHTML='<div class="no-data">ไม่พบ Stock ในคลังที่เลือก</div>';return;}
+  const totalQty=rows.reduce(function(s,r){return s+(r.qty||0);},0);
+  const tableRows=rows.map(function(r){
+    return'<tr><td>'+r.wh+'</td><td style="font-weight:600">'+r.zone+'</td><td style="font-family:monospace;font-weight:600">'+r.sku+'</td><td>'+r.lot+'</td><td style="text-align:right;font-family:monospace">'+(r.qty||0).toLocaleString()+'</td><td>'+r.unit+'</td></tr>';
+  }).join('');
+  el.innerHTML='<div class="preview-wrap"><div class="preview-header"><div class="preview-company">บริษัท อีสเทิร์นซิลิเกต จำกัด</div><div class="preview-title">รายงาน Stock คงเหลือ ณ วันที่ '+nowStr()+'</div></div><div style="overflow-x:auto"><table class="preview-table"><thead><tr><th>คลัง</th><th>Zone</th><th>รหัสสินค้า</th><th>Lot</th><th>จำนวนคงเหลือ</th><th>หน่วย</th></tr></thead><tbody>'+tableRows+'</tbody></table></div><div class="preview-summary"><div class="preview-sum-item">รายการทั้งหมด: <b>'+rows.length+'</b></div><div class="preview-sum-item">รวมจำนวน: <b>'+totalQty.toLocaleString()+'</b></div></div><div style="padding:10px 14px;text-align:right"><button onclick="window.print()" style="padding:10px 18px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;font-family:var(--font);border:none;background:#1e3a5f;color:#fff;cursor:pointer">🖨 พิมพ์</button></div></div>';
+}
+
+function exportStockCSV(){
+  const wf=document.getElementById('expWH').value;
+  const skuF=(document.getElementById('expSku')&&document.getElementById('expSku').value)||'';
+  const rows=[];
+  ['78','910'].forEach(function(wh){
+    if(wf&&wh!==(wf==='คลัง 7-8'?'78':'910'))return;
+    ZID.forEach(function(z){
+      STOCK[wh][z].forEach(function(r){
+        if(skuF&&r.sku!==skuF)return;
+        rows.push([whName(wh),z,r.sku,r.lot||'',r.qty||0,r.unit||'ถุง']);
+      });
+    });
+    STOCK[wh]['NC'].forEach(function(r){
+      if(skuF&&r.sku!==skuF)return;
+      rows.push([whName(wh),'NC',r.sku,r.lot||'',r.qty||0,r.unit||'ถุง']);
+    });
+  });
+  if(!rows.length){showToast('ไม่พบ Stock ในคลังที่เลือก',false);return;}
+  const headers=['คลัง','Zone','รหัสสินค้า','Lot','จำนวนคงเหลือ','หน่วย'];
+  const bom='\uFEFF';
+  const csv=bom+[headers,...rows].map(function(r){return r.map(function(v){return'"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='WMS_Stock_'+todayStr()+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('ดาวน์โหลด Stock CSV เรียบร้อยแล้ว',true);
+}
+
 // init export date defaults
 function initExportDates(){
   const today=todayStr();
   const firstOfMonth=today.substring(0,8)+'01';
   document.getElementById('expDateFrom').value=firstOfMonth;
   document.getElementById('expDateTo').value=today;
+  initSkuFilter();
 }
 // ── โหลด Stock จาก Google Sheet ผ่าน Cloudflare Worker ──
 const WORKER_URL_BASE='https://wms-proxy.esl-ptit.workers.dev';
