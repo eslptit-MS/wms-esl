@@ -737,7 +737,7 @@ function commitTx(type,whid,zid,sku,lot,qty,unit,txData,whn){
   if(type==='in'){
     const ex=rows.find(r=>r.sku===sku&&(r.lot||'')===(lot||''));
     if(ex)ex.qty+=qty;
-    else rows.push({sku,name:'',qty,lot,unit,date:date||todayStr()});
+    else rows.push({sku,name:'',qty,lot,unit,date:txData.date||todayStr()});
     showToast(`✅ รับเข้า Zone ${zid} | ${sku} ${qty.toLocaleString()} ${unit} — บันทึกแล้ว`,true);
   } else {
     let rem=qty;
@@ -939,68 +939,61 @@ function openSheet(id){
   document.getElementById('sheetZoneAvail').textContent=isNC?`มีสินค้า ${used} ชิ้น`:`ว่างอยู่ ${cap-used} ถุง`;
   document.getElementById('sheetProgress').style.cssText=`width:${isNC?Math.min(100,Math.round(used/10)):p}%;background:${c.bar}`;
   let html='';
-  if(!rows.length){html=`<div class="empty-zone">ยังไม่มีสินค้าใน Zone นี้</div>`;}
-  else {
-    // ── จัดกลุ่มตาม date ──
+  if(!rows.length){html='<div class="empty-zone">ยังไม่มีสินค้าใน Zone นี้</div>';}
+  else{
+    // จัดกลุ่มตามวันที่รับเข้า
     const dateMap={};
     rows.forEach(function(r){
       const d=r.date||'ไม่ระบุวันที่';
       if(!dateMap[d])dateMap[d]=[];
       dateMap[d].push(r);
     });
-    // เรียงวันที่จากเก่า → ใหม่ (ไม่ระบุวันที่ไว้ท้ายสุด)
+    // เรียงวันที่เก่า→ใหม่ (ไม่ระบุวันที่ไว้ท้ายสุด)
     const sortedDates=Object.keys(dateMap).sort(function(a,b){
       if(a==='ไม่ระบุวันที่')return 1;
-      if(b==='ไม่ระบุวันที่')return-1;
+      if(b==='ไม่ระบุวันที่')return -1;
       return a<b?-1:1;
     });
-
-    const grandTotalByUnit={};
-
+    const grandUnit={};
     sortedDates.forEach(function(d,di){
       const items=dateMap[d];
-      const subtotalByUnit={};
+      const subUnit={};
       items.forEach(function(r){
         const u=r.unit||'ถุง';
-        subtotalByUnit[u]=(subtotalByUnit[u]||0)+(r.qty||0);
-        grandTotalByUnit[u]=(grandTotalByUnit[u]||0)+(r.qty||0);
+        subUnit[u]=(subUnit[u]||0)+(r.qty||0);
+        grandUnit[u]=(grandUnit[u]||0)+(r.qty||0);
       });
-
       // หัววัน
-      html+=`<div style="display:flex;align-items:center;gap:8px;margin:${di===0?'0':'14px'} 0 6px">
-        <div style="font-size:12px;font-weight:700;color:var(--text3);font-family:var(--mono);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 10px;white-space:nowrap">📅 ${d}</div>
-        <div style="flex:1;height:1px;background:var(--border)"></div>
-      </div>`;
-
-      // รายการในวันนั้น
+      html+='<div style="display:flex;align-items:center;gap:8px;margin:'+(di===0?'0':'14px')+' 0 6px">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--text3);font-family:var(--mono);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 10px;white-space:nowrap">📅 '+d+'</div>'
+        +'<div style="flex:1;height:1px;background:var(--border)"></div></div>';
+      // รายการ
       items.forEach(function(r){
-        html+=`<div class="sku-row">
-          <div class="sku-row-left">
-            <div class="sku-code">${r.sku}</div>
-            ${r.name?`<div class="sku-name">${r.name}</div>`:''}
-            ${r.lot?`<div class="sku-lot">📦 ${r.lot}</div>`:''}
-          </div>
-          <div>
-            <div class="sku-qty">${(r.qty||0).toLocaleString()}</div>
-            <div class="sku-qty-label">${r.unit||'ถุง'}</div>
-          </div>
-        </div>`;
+        html+='<div class="sku-row">'
+          +'<div class="sku-row-left">'
+          +'<div class="sku-code">'+r.sku+'</div>'
+          +(r.name?'<div class="sku-name">'+r.name+'</div>':'')
+          +(r.lot?'<div class="sku-lot">📦 '+r.lot+'</div>':'')
+          +'</div>'
+          +'<div>'
+          +'<div class="sku-qty">'+(r.qty||0).toLocaleString()+'</div>'
+          +'<div class="sku-qty-label">'+(r.unit||'ถุง')+'</div>'
+          +'</div></div>';
       });
-
-      // subtotal ของวันนั้น
-      const subTexts=Object.entries(subtotalByUnit).map(function(e){return'<b style="font-family:var(--mono)">'+e[1].toLocaleString()+'</b> '+e[0];}).join(' + ');
-      html+=`<div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:5px 4px 2px;border-top:1px dashed var(--border);margin-top:2px">
-        <span style="font-size:11px;color:var(--text3);font-weight:600">รวมวันนี้</span>
-        <span style="font-size:13px;color:var(--text2)">${subTexts}</span>
-      </div>`;
+      // subtotal วันนั้น
+      const subTxt=Object.entries(subUnit).map(function(e){return'<b style="font-family:var(--mono)">'+e[1].toLocaleString()+'</b> '+e[0];}).join(' + ');
+      html+='<div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:5px 4px 2px;border-top:1px dashed var(--border);margin-top:2px">'
+        +'<span style="font-size:11px;color:var(--text3);font-weight:600">รวมวันนี้</span>'
+        +'<span style="font-size:13px;color:var(--text2)">'+subTxt+'</span></div>';
     });
-
     // grand total
-    const grandTexts=Object.entries(grandTotalByUnit).map(function(e){return'<span style="font-family:var(--mono);font-size:18px;font-weight:800;color:var(--text)">'+e[1].toLocaleString()+'</span> <span style="font-size:13px;font-weight:600;color:var(--text3)">'+e[0]+'</span>';}).join(' <span style="color:var(--text3);font-size:14px">+</span> ');
-    html+=`<div style="margin-top:14px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);border:1.5px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:13px;font-weight:700;color:var(--text2)">📦 รวมทั้ง Zone</span>
-      <div style="display:flex;align-items:baseline;gap:4px">${grandTexts}</div>
-    </div>`;
+    const grandTxt=Object.entries(grandUnit).map(function(e){
+      return'<span style="font-family:var(--mono);font-size:18px;font-weight:800;color:var(--text)">'+e[1].toLocaleString()+'</span>'
+        +' <span style="font-size:13px;font-weight:600;color:var(--text3)">'+e[0]+'</span>';
+    }).join(' <span style="color:var(--text3);font-size:14px">+</span> ');
+    html+='<div style="margin-top:14px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);border:1.5px solid var(--border2);display:flex;justify-content:space-between;align-items:center">'
+      +'<span style="font-size:13px;font-weight:700;color:var(--text2)">📦 รวมทั้ง Zone</span>'
+      +'<div style="display:flex;align-items:baseline;gap:4px">'+grandTxt+'</div></div>';
   }
   document.getElementById('sheetBody').innerHTML=html;
   document.getElementById('overlay').classList.add('show');
@@ -1594,9 +1587,9 @@ function loadStockFromSheet(){
           var wh=r.wh==='คลัง 9-10'?'910':'78';
           if(!STOCK[wh]||!STOCK[wh][r.zone])return;
           if(r.zone==='NC'){
-            STOCK[wh]['NC'].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.lastInDate||''});
+            STOCK[wh]['NC'].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||''});
           } else if(STOCK[wh][r.zone]!==undefined){
-            STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.lastInDate||''});
+            STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||''});
           }
         });
       }
