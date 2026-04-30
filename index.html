@@ -1101,7 +1101,7 @@ function renderStock(){
         if(!skuMap[r.sku]) skuMap[r.sku]={sku:r.sku,unit:r.unit||'ถุง',wh78:0,wh910:0,zones:[]};
         if(wh==='78') skuMap[r.sku].wh78+=r.qty;
         else skuMap[r.sku].wh910+=r.qty;
-        skuMap[r.sku].zones.push({wh:whName(wh),zone:z,qty:r.qty,lot:r.lot,unit:r.unit||'ถุง'});
+        skuMap[r.sku].zones.push({wh:whName(wh),zone:z,qty:r.qty,lot:r.lot,unit:r.unit||'ถุง',furnace:r.furnace||''});
       });
     });
     // NC zone
@@ -1111,7 +1111,7 @@ function renderStock(){
       if(!skuMap[r.sku]) skuMap[r.sku]={sku:r.sku,unit:r.unit||'ถุง',wh78:0,wh910:0,zones:[]};
       if(wh==='78') skuMap[r.sku].wh78+=r.qty;
       else skuMap[r.sku].wh910+=r.qty;
-      skuMap[r.sku].zones.push({wh:whName(wh),zone:'NC',qty:r.qty,lot:r.lot,unit:r.unit||'ถุง'});
+      skuMap[r.sku].zones.push({wh:whName(wh),zone:'NC',qty:r.qty,lot:r.lot,unit:r.unit||'ถุง',furnace:r.furnace||''});
     });
   });
 
@@ -1123,11 +1123,14 @@ function renderStock(){
 
   el.innerHTML=skus.map(function(s){
     const total=s.wh78+s.wh910;
-    const zonesHtml=s.zones.map(function(z){return`
-      <div class="stock-chip">
-        <div class="stock-chip-label">${z.wh} Zone ${z.zone}${z.lot?' · '+z.lot:''}</div>
-        <div class="stock-chip-val">${z.qty.toLocaleString()} ${z.unit}</div>
-      </div>`;}).join('');
+    const zonesHtml=s.zones.map(function(z){
+      const furnaceTag=z.furnace?'<span style="font-size:11px;font-weight:700;color:#e55a00;margin-left:4px">🔥'+z.furnace+'</span>':'';
+      const lotTag=z.lot?'<span style="font-size:11px;color:var(--text3);margin-left:4px">📦'+z.lot+'</span>':'';
+      return'<div class="stock-chip">'
+        +'<div class="stock-chip-label">'+z.wh+' Zone '+z.zone+furnaceTag+lotTag+'</div>'
+        +'<div class="stock-chip-val">'+z.qty.toLocaleString()+' '+z.unit+'</div>'
+        +'</div>';
+    }).join('');
     // แสดง chip แยกคลังเฉพาะตอนดูรวม 2 คลัง
     const whChips=(!stockFilterWH)?`
       ${s.wh78>0?`<div class="stock-chip" style="background:#eff6ff"><div class="stock-chip-label">คลัง 7-8</div><div class="stock-chip-val" style="color:#2563eb">${s.wh78.toLocaleString()} ${s.unit}</div></div>`:''}
