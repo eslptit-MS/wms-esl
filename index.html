@@ -450,6 +450,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
               <option value="คลัง 9-10">คลัง 9-10</option>
             </select>
           </div>
+          <div class="fg" id="expSkuGroup" style="display:none">
+            <label>SKU</label>
+            <select id="expSku">
+              <option value="">SKU ทั้งหมด</option>
+            </select>
+          </div>
           <div class="fg">
             <label>ประเภท</label>
             <select id="expType">
@@ -1058,12 +1064,13 @@ function renderStock(){
   const zf=document.getElementById('stockZone').value;
   const el=document.getElementById('stockList');
 
-  // รวบรวมข้อมูลทั้ง 2 คลัง
-  const skuMap={}; // {sku: {unit, wh78, wh910, zones:[...]}}
-  ['78','910'].forEach(wh=>{
-    ZID.forEach(z=>{
+  // กรองตามคลังที่เลือก (curWH) หรือแสดงทั้ง 2 คลังถ้ายังไม่เลือก
+  const whList=curWH?[curWH]:['78','910'];
+  const skuMap={};
+  whList.forEach(function(wh){
+    ZID.forEach(function(z){
       if(zf&&zf!==z)return;
-      STOCK[wh][z].forEach(r=>{
+      (STOCK[wh][z]||[]).forEach(function(r){
         if(q&&!(r.sku.toLowerCase().includes(q)||(r.name||'').toLowerCase().includes(q)))return;
         if(!skuMap[r.sku]) skuMap[r.sku]={sku:r.sku,unit:r.unit||'ถุง',wh78:0,wh910:0,zones:[]};
         if(wh==='78') skuMap[r.sku].wh78+=r.qty;
@@ -1071,27 +1078,41 @@ function renderStock(){
         skuMap[r.sku].zones.push({wh:whName(wh),zone:z,qty:r.qty,lot:r.lot,unit:r.unit||'ถุง'});
       });
     });
+    // NC zone
+    (STOCK[wh]['NC']||[]).forEach(function(r){
+      if(zf&&zf!=='NC')return;
+      if(q&&!(r.sku.toLowerCase().includes(q)||(r.name||'').toLowerCase().includes(q)))return;
+      if(!skuMap[r.sku]) skuMap[r.sku]={sku:r.sku,unit:r.unit||'ถุง',wh78:0,wh910:0,zones:[]};
+      if(wh==='78') skuMap[r.sku].wh78+=r.qty;
+      else skuMap[r.sku].wh910+=r.qty;
+      skuMap[r.sku].zones.push({wh:whName(wh),zone:'NC',qty:r.qty,lot:r.lot,unit:r.unit||'ถุง'});
+    });
   });
 
   const skus=Object.values(skuMap);
   if(!skus.length){el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">ไม่พบข้อมูล Stock</div></div>';return;}
 
-  el.innerHTML=skus.map(s=>{
+  // header แสดงชื่อคลังที่กรอง
+  const whLabel=curWH?whName(curWH):'ทุกคลัง';
+
+  el.innerHTML=skus.map(function(s){
     const total=s.wh78+s.wh910;
-    const zonesHtml=s.zones.map(z=>`
+    const zonesHtml=s.zones.map(function(z){return`
       <div class="stock-chip">
         <div class="stock-chip-label">${z.wh} Zone ${z.zone}${z.lot?' · '+z.lot:''}</div>
         <div class="stock-chip-val">${z.qty.toLocaleString()} ${z.unit}</div>
-      </div>`).join('');
+      </div>`;}).join('');
+    // แสดง chip แยกคลังเฉพาะตอนดูรวม 2 คลัง
+    const whChips=(!curWH)?`
+      ${s.wh78>0?`<div class="stock-chip" style="background:#eff6ff"><div class="stock-chip-label">คลัง 7-8</div><div class="stock-chip-val" style="color:#2563eb">${s.wh78.toLocaleString()} ${s.unit}</div></div>`:''}
+      ${s.wh910>0?`<div class="stock-chip" style="background:#f0fdf4"><div class="stock-chip-label">คลัง 9-10</div><div class="stock-chip-val" style="color:#16a34a">${s.wh910.toLocaleString()} ${s.unit}</div></div>`:''}
+    `:'';
     return`<div class="stock-card">
       <div class="stock-card-head">
         <span class="tag">${s.sku}</span>
         <span style="font-size:15px;font-weight:800;font-family:var(--mono)">รวม ${total.toLocaleString()} ${s.unit}</span>
       </div>
-      <div class="stock-card-body" style="margin-bottom:6px">
-        ${s.wh78>0?`<div class="stock-chip" style="background:#eff6ff"><div class="stock-chip-label">คลัง 7-8</div><div class="stock-chip-val" style="color:#2563eb">${s.wh78.toLocaleString()} ${s.unit}</div></div>`:''}
-        ${s.wh910>0?`<div class="stock-chip" style="background:#f0fdf4"><div class="stock-chip-label">คลัง 9-10</div><div class="stock-chip-val" style="color:#16a34a">${s.wh910.toLocaleString()} ${s.unit}</div></div>`:''}
-      </div>
+      ${whChips?`<div class="stock-card-body" style="margin-bottom:6px">${whChips}</div>`:''}
       <div class="stock-card-body">${zonesHtml}</div>
     </div>`;
   }).join('');
@@ -1377,9 +1398,9 @@ function showPage(name,btn){
   if(btn)btn.classList.add('active');
   document.getElementById('bodyScroll').scrollTop=0;
   if(name==='stock')renderStock();
+  if(name==='export'){syncExpWH();initExportDates();document.getElementById('exportPreviewArea').innerHTML='';}
   if(name==='history')renderHist();
   if(name==='tank')renderTankPage();
-  if(name==='export'){initExportDates();document.getElementById('exportPreviewArea').innerHTML='';}
 }
 
 // ── EXPORT ──────────────────────────────────────────────────────────────────
@@ -1625,7 +1646,21 @@ document.getElementById('histType').addEventListener('change',renderHist);
 document.getElementById('expDateFrom').addEventListener('change',function(){});
 document.getElementById('expDateTo').addEventListener('change',function(){});
 document.getElementById('expWH').addEventListener('change',function(){});
-document.getElementById('expType').addEventListener('change',function(){});
+document.getElementById('expType').addEventListener('change',function(){
+  const t=this.value;
+  const grp=document.getElementById('expSkuGroup');
+  if(grp) grp.style.display=(t==='stock')?'':'none';
+  if(t==='stock') initSkuFilter();
+});
+
+// ซิงค์ expWH ให้ตรงกับคลังที่เลือกอยู่ตอนเข้าหน้า Export
+function syncExpWH(){
+  const sel=document.getElementById('expWH');
+  if(!sel)return;
+  if(curWH==='78') sel.value='คลัง 7-8';
+  else if(curWH==='910') sel.value='คลัง 9-10';
+  else sel.value='';
+}
 
 setInterval(updateTime,30000);
 </script>
