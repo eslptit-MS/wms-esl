@@ -259,9 +259,9 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <div class="header-sub" id="ts">--</div>
     </div>
     <div class="wh-toggle">
-      <button class="wh-btn" onclick="switchWH('',this)">ทั้งหมด</button>
-      <button class="wh-btn active" onclick="switchWH('78',this)">7-8</button>
-      <button class="wh-btn" onclick="switchWH('910',this)">9-10</button>
+      <button class="wh-btn" onclick="switchStockWH('',this)">ทั้งหมด</button>
+      <button class="wh-btn active" onclick="switchStockWH('78',this)">7-8</button>
+      <button class="wh-btn" onclick="switchStockWH('910',this)">9-10</button>
     </div>
   </div>
 
@@ -637,7 +637,7 @@ const STOCK={'78':{},'910':{}};
 ZID.forEach(function(id){STOCK['78'][id]=[];STOCK['910'][id]=[];});
 STOCK['78']['NC']=[];STOCK['910']['NC']=[];
 const LOGS=[];
-let curWH='78', selZone=null, toastTimer=null;
+let curWH='78', stockFilterWH='78', selZone=null, toastTimer=null;
 
 // ── Helpers ──
 const SKU_RE=/^[A-Za-z0-9][A-Za-z0-9\-\.]{0,19}$/;
@@ -713,27 +713,42 @@ function doTx(){
   let hasError=false;
 
   // บันทึกทีละ lot row
+  // helper: fetch พร้อม timeout 15 วินาที
+  function fetchWithTimeout(url, opts, ms){
+    const controller=new AbortController();
+    const tid=setTimeout(function(){controller.abort();},ms);
+    return fetch(url,Object.assign({},opts,{signal:controller.signal}))
+      .finally(function(){clearTimeout(tid);});
+  }
+
   function saveNext(idx){
     if(idx>=totalRows){
-      // ทุก lot บันทึกแล้ว
       btn.disabled=false;
       switchTxTab(type);
-      showToast(hasError?'⚠️ บันทึกบางรายการสำเร็จ (เช็ค internet)':'✅ บันทึก '+totalRows+' รายการ เรียบร้อย',!hasError);
+      const doneMsg='✅ บันทึก '+totalRows+' รายการ เรียบร้อย';
+      const errMsg='⚠️ บันทึกบางรายการสำเร็จ (เช็ค internet)';
+      showToast(hasError?errMsg:doneMsg,!hasError);
       return;
     }
+    // แสดงความคืบหน้า
+    btn.textContent='⏳ บันทึก '+(idx+1)+'/'+totalRows+'...';
+
     const lr=lotRows[idx];
     const txData={type,wh:whid,zone:zid,sku,lot:lr.lot,qty:lr.qty,unit,date,time,sender,user,note:lr.note};
-    fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(txData)})
+
+    fetchWithTimeout(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(txData)},15000)
       .then(function(r){return r.json();})
       .then(function(){
         commitTx(type,whid,zid,sku,lr.lot,lr.qty,unit,txData,whn);
-        saveNext(idx+1);
+        // หน่วง 800ms ก่อน lot ถัดไป ป้องกัน Apps Script rate limit
+        setTimeout(function(){saveNext(idx+1);},800);
       })
       .catch(function(err){
-        console.error('Worker error:',err);
+        console.error('Lot '+(idx+1)+' error:',err);
         hasError=true;
+        // บันทึก local ไว้ก่อน แล้วไปต่อ lot ถัดไป
         commitTx(type,whid,zid,sku,lr.lot,lr.qty,unit,txData,whn);
-        saveNext(idx+1);
+        setTimeout(function(){saveNext(idx+1);},800);
       });
   }
   saveNext(0);
@@ -1069,7 +1084,7 @@ function renderStock(){
   const el=document.getElementById('stockList');
 
   // กรองตามคลังที่เลือก (curWH) หรือแสดงทั้ง 2 คลังถ้ายังไม่เลือก
-  const whList=curWH?[curWH]:['78','910'];
+  const whList=stockFilterWH?[stockFilterWH]:['78','910'];
   const skuMap={};
   whList.forEach(function(wh){
     ZID.forEach(function(z){
@@ -1107,7 +1122,7 @@ function renderStock(){
         <div class="stock-chip-val">${z.qty.toLocaleString()} ${z.unit}</div>
       </div>`;}).join('');
     // แสดง chip แยกคลังเฉพาะตอนดูรวม 2 คลัง
-    const whChips=(!curWH)?`
+    const whChips=(!stockFilterWH)?`
       ${s.wh78>0?`<div class="stock-chip" style="background:#eff6ff"><div class="stock-chip-label">คลัง 7-8</div><div class="stock-chip-val" style="color:#2563eb">${s.wh78.toLocaleString()} ${s.unit}</div></div>`:''}
       ${s.wh910>0?`<div class="stock-chip" style="background:#f0fdf4"><div class="stock-chip-label">คลัง 9-10</div><div class="stock-chip-val" style="color:#16a34a">${s.wh910.toLocaleString()} ${s.unit}</div></div>`:''}
     `:'';
@@ -1163,6 +1178,12 @@ function switchWH(id,btn){
   document.querySelectorAll('.wh-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   if(id) document.getElementById('txWH').value=id;
   renderMap();renderStats();renderStock();
+}
+function switchStockWH(id,btn){
+  stockFilterWH=id;
+  document.querySelectorAll('.wh-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderStock();
 }
 function updateTime(){
   const n=new Date();
@@ -1712,8 +1733,8 @@ document.getElementById('expType').addEventListener('change',function(){
 function syncExpWH(){
   const sel=document.getElementById('expWH');
   if(!sel)return;
-  if(curWH==='78') sel.value='คลัง 7-8';
-  else if(curWH==='910') sel.value='คลัง 9-10';
+  if(stockFilterWH==='78') sel.value='คลัง 7-8';
+  else if(stockFilterWH==='910') sel.value='คลัง 9-10';
   else sel.value='';
 }
 
