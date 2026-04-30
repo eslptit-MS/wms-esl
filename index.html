@@ -1123,7 +1123,25 @@ function renderStock(){
 
   el.innerHTML=skus.map(function(s){
     const total=s.wh78+s.wh910;
-    const zonesHtml=s.zones.map(function(z){
+    // สรุปรวมต่อ Furnace
+  const furnaceSum={};
+  s.zones.forEach(function(z){
+    if(!z.furnace)return;
+    furnaceSum[z.furnace]=(furnaceSum[z.furnace]||0)+z.qty;
+  });
+  const furnaceKeys=Object.keys(furnaceSum).sort();
+  const furnaceSummaryHtml=furnaceKeys.length?
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg3)">'
+    +furnaceKeys.map(function(f){
+      return'<div style="display:flex;align-items:center;gap:5px;background:#fff3ed;border:1.5px solid #e55a00;border-radius:8px;padding:4px 10px">'
+        +'<span style="font-size:13px;font-weight:800;color:#e55a00">🔥 '+f+'</span>'
+        +'<span style="font-size:14px;font-weight:700;color:var(--text);font-family:var(--mono)">'+furnaceSum[f].toLocaleString()+' '+s.unit+'</span>'
+        +'</div>';
+    }).join('')
+    +'</div>'
+    :'';
+
+  const zonesHtml=s.zones.map(function(z){
       const furnaceTag=z.furnace?'<span style="font-size:11px;font-weight:700;color:#e55a00;margin-left:4px">🔥'+z.furnace+'</span>':'';
       const lotTag=z.lot?'<span style="font-size:11px;color:var(--text3);margin-left:4px">📦'+z.lot+'</span>':'';
       return'<div class="stock-chip">'
@@ -1136,14 +1154,15 @@ function renderStock(){
       ${s.wh78>0?`<div class="stock-chip" style="background:#eff6ff"><div class="stock-chip-label">คลัง 7-8</div><div class="stock-chip-val" style="color:#2563eb">${s.wh78.toLocaleString()} ${s.unit}</div></div>`:''}
       ${s.wh910>0?`<div class="stock-chip" style="background:#f0fdf4"><div class="stock-chip-label">คลัง 9-10</div><div class="stock-chip-val" style="color:#16a34a">${s.wh910.toLocaleString()} ${s.unit}</div></div>`:''}
     `:'';
-    return`<div class="stock-card">
-      <div class="stock-card-head">
-        <span class="tag">${s.sku}</span>
-        <span style="font-size:15px;font-weight:800;font-family:var(--mono)">รวม ${total.toLocaleString()} ${s.unit}</span>
-      </div>
-      ${whChips?`<div class="stock-card-body" style="margin-bottom:6px">${whChips}</div>`:''}
-      <div class="stock-card-body">${zonesHtml}</div>
-    </div>`;
+    return'<div class="stock-card">'
+      +'<div class="stock-card-head">'
+        +'<span class="tag">'+s.sku+'</span>'
+        +'<span style="font-size:15px;font-weight:800;font-family:var(--mono)">รวม '+total.toLocaleString()+' '+s.unit+'</span>'
+      +'</div>'
+      +furnaceSummaryHtml
+      +(whChips?'<div class="stock-card-body" style="margin-bottom:6px">'+whChips+'</div>':'')
+      +'<div class="stock-card-body">'+zonesHtml+'</div>'
+    +'</div>';
   }).join('');
 }
 
