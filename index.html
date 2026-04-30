@@ -59,6 +59,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .wh-toggle { display: flex; background: var(--bg3); border-radius: 10px; padding: 3px; gap: 3px; border: 1px solid var(--border); }
 .wh-btn { padding: 8px 18px; border-radius: 8px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; background: transparent; color: var(--text3); font-family: var(--font); transition: all .2s; }
 .wh-btn.active { background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgba(37,99,235,.35); }
+.stock-wh-btn { padding: 7px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; border: 1.5px solid var(--border2); cursor: pointer; background: var(--bg2); color: var(--text3); font-family: var(--font); transition: all .2s; }
+.stock-wh-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 2px 6px rgba(37,99,235,.35); }
 
 /* ── BODY SCROLL ── */
 .body { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
@@ -259,9 +261,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <div class="header-sub" id="ts">--</div>
     </div>
     <div class="wh-toggle">
-      <button class="wh-btn" onclick="switchStockWH('',this)">ทั้งหมด</button>
-      <button class="wh-btn active" onclick="switchStockWH('78',this)">7-8</button>
-      <button class="wh-btn" onclick="switchStockWH('910',this)">9-10</button>
+      <button class="wh-btn active" onclick="switchWH('78',this)">7-8</button>
+      <button class="wh-btn" onclick="switchWH('910',this)">9-10</button>
     </div>
   </div>
 
@@ -399,6 +400,11 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
     <!-- PAGE: STOCK -->
     <div class="page" id="page-stock">
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button class="stock-wh-btn active" onclick="switchStockWH('',this)">ทั้งหมด</button>
+        <button class="stock-wh-btn" onclick="switchStockWH('78',this)">7-8</button>
+        <button class="stock-wh-btn" onclick="switchStockWH('910',this)">9-10</button>
+      </div>
       <div class="filter-row">
         <input id="stockSearch" placeholder="🔍 ค้นหา SKU / ชื่อสินค้า...">
         <select id="stockZone"><option value="">ทุก Zone</option></select>
@@ -637,7 +643,7 @@ const STOCK={'78':{},'910':{}};
 ZID.forEach(function(id){STOCK['78'][id]=[];STOCK['910'][id]=[];});
 STOCK['78']['NC']=[];STOCK['910']['NC']=[];
 const LOGS=[];
-let curWH='78', stockFilterWH='78', selZone=null, toastTimer=null;
+let curWH='78', stockFilterWH='', selZone=null, toastTimer=null;
 
 // ── Helpers ──
 const SKU_RE=/^[A-Za-z0-9][A-Za-z0-9\-\.]{0,19}$/;
