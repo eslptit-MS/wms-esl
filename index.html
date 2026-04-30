@@ -740,7 +740,7 @@ function doTx(){
     btn.textContent='⏳ บันทึก '+(idx+1)+'/'+totalRows+'...';
 
     const lr=lotRows[idx];
-    const txData={type,wh:whid,zone:zid,sku,lot:lr.lot,qty:lr.qty,unit,date,time,sender,user,note:lr.note};
+    const txData={type,wh:whid,zone:zid,sku,lot:lr.lot,qty:lr.qty,unit,date,time,sender,user,note:lr.note,furnace:lr.furnace||''};
 
     fetchWithTimeout(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(txData)},15000)
       .then(function(r){return r.json();})
@@ -766,7 +766,7 @@ function commitTx(type,whid,zid,sku,lot,qty,unit,txData,whn){
   if(type==='in'){
     const ex=rows.find(r=>r.sku===sku&&(r.lot||'')===(lot||''));
     if(ex)ex.qty+=qty;
-    else rows.push({sku,name:'',qty,lot,unit,date:txData.date||todayStr()});
+    else rows.push({sku,name:'',qty,lot,unit,date:txData.date||todayStr(),furnace:txData.furnace||''});
     showToast(`✅ รับเข้า Zone ${zid} | ${sku} ${qty.toLocaleString()} ${unit} — บันทึกแล้ว`,true);
   } else {
     let rem=qty;
@@ -1000,9 +1000,10 @@ function openSheet(id){
         +'<div style="flex:1;height:1px;background:var(--border)"></div></div>';
       // รายการ
       items.forEach(function(r){
+        const furnaceBadge=r.furnace?'<span style="font-size:11px;font-weight:700;color:#fff;background:#e55a00;border-radius:4px;padding:1px 7px;margin-left:4px">🔥 '+r.furnace+'</span>':'';
         html+='<div class="sku-row">'
           +'<div class="sku-row-left">'
-          +'<div class="sku-code">'+r.sku+'</div>'
+          +'<div class="sku-code">'+r.sku+furnaceBadge+'</div>'
           +(r.name?'<div class="sku-name">'+r.name+'</div>':'')
           +(r.lot?'<div class="sku-lot">📦 '+r.lot+'</div>':'')
           +'</div>'
@@ -1212,17 +1213,30 @@ function addLotRow(){
   const div=document.createElement('div');
   div.className='lot-row';
   div.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:8px';
+  const CL_SKUS=['CL-2.5','CL-3.2','CL-3.2C'];
+  const skuVal=(document.getElementById('txSku').value||'').trim().toUpperCase();
+  const showFurnace=CL_SKUS.includes(skuVal);
   div.innerHTML=`
     <div style="flex:1.2">
       <input class="lot-input" placeholder="Lot (ถ้ามี)" autocapitalize="characters"
         style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--bg2);color:var(--text)">
     </div>
-    <div style="flex:1">
+    <div style="flex:0.8">
       <input class="qty-input" type="number" min="1" value="1" inputmode="numeric" placeholder="จำนวน"
         style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--bg2);color:var(--text);text-align:right">
     </div>
-    <div style="flex:1.5">
-      <input class="note-input" placeholder="หมายเหตุ (optional)"
+    <div class="furnace-cell" style="flex:0.7;display:${showFurnace?'block':'none'}">
+      <select class="furnace-input"
+        style="width:100%;padding:10px 8px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--bg2);color:var(--text)">
+        <option value="">-</option>
+        <option value="F#1">F#1</option>
+        <option value="F#2">F#2</option>
+        <option value="F#3">F#3</option>
+        <option value="F#4">F#4</option>
+      </select>
+    </div>
+    <div style="flex:1.4">
+      <input class="note-input" placeholder="หมายเหตุ"
         style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--bg2);color:var(--text)">
     </div>
     <button type="button" onclick="removeLotRow(this)" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:#fee2e2;color:#dc2626;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">×</button>
@@ -1242,7 +1256,9 @@ function getLotRows(){
     const lot=(div.querySelector('.lot-input').value||'').trim();
     const qty=parseFloat(div.querySelector('.qty-input').value)||0;
     const note=(div.querySelector('.note-input').value||'').trim();
-    rows.push({lot,qty,note});
+    const furnaceEl=div.querySelector('.furnace-input');
+    const furnace=furnaceEl?furnaceEl.value:'';
+    rows.push({lot,qty,note,furnace});
   });
   return rows;
 }
@@ -1690,9 +1706,9 @@ function loadStockFromSheet(){
           var wh=r.wh==='คลัง 9-10'?'910':'78';
           if(!STOCK[wh]||!STOCK[wh][r.zone])return;
           if(r.zone==='NC'){
-            STOCK[wh]['NC'].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||''});
+            STOCK[wh]['NC'].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||''});
           } else if(STOCK[wh][r.zone]!==undefined){
-            STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||''});
+            STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||''});
           }
         });
       }
@@ -1719,6 +1735,12 @@ document.getElementById('txSku').addEventListener('input',function(){
   this.classList.toggle('err',!ok&&v.length>0);
   const errEl=document.getElementById('skuErr');
   if(errEl) errEl.style.display=(!ok&&v.length>0)?'block':'none';
+  // แสดง/ซ่อน Furnace dropdown ตาม SKU
+  const CL_SKUS=['CL-2.5','CL-3.2','CL-3.2C'];
+  const showF=CL_SKUS.includes(v.toUpperCase());
+  document.querySelectorAll('#lotRowsWrap .furnace-cell').forEach(function(el){
+    el.style.display=showF?'block':'none';
+  });
 });
 document.getElementById('quickSku').addEventListener('input',quickSearch);
 document.getElementById('stockSearch').addEventListener('input',renderStock);
