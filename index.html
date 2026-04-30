@@ -1000,10 +1000,10 @@ function openSheet(id){
         +'<div style="flex:1;height:1px;background:var(--border)"></div></div>';
       // รายการ
       items.forEach(function(r){
-        const furnaceBadge=r.furnace?'<span style="font-size:11px;font-weight:700;color:#fff;background:#e55a00;border-radius:4px;padding:1px 7px;margin-left:4px">🔥 '+r.furnace+'</span>':'';
         html+='<div class="sku-row">'
           +'<div class="sku-row-left">'
-          +'<div class="sku-code">'+r.sku+furnaceBadge+'</div>'
+          +'<div class="sku-code">'+r.sku+'</div>'
+          +(r.furnace?'<div class="sku-lot" style="color:#e55a00;font-weight:700">🔥 '+r.furnace+'</div>':'')
           +(r.name?'<div class="sku-name">'+r.name+'</div>':'')
           +(r.lot?'<div class="sku-lot">📦 '+r.lot+'</div>':'')
           +'</div>'
@@ -1216,31 +1216,31 @@ function addLotRow(){
   const CL_SKUS=['CL-2.5','CL-3.2','CL-3.2C'];
   const skuVal=(document.getElementById('txSku').value||'').trim().toUpperCase();
   const showFurnace=CL_SKUS.includes(skuVal);
-  div.innerHTML=`
-    <div style="flex:1.2">
-      <input class="lot-input" placeholder="Lot (ถ้ามี)" autocapitalize="characters"
-        style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--bg2);color:var(--text)">
-    </div>
-    <div style="flex:0.8">
-      <input class="qty-input" type="number" min="1" value="1" inputmode="numeric" placeholder="จำนวน"
-        style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--bg2);color:var(--text);text-align:right">
-    </div>
-    <div class="furnace-cell" style="flex:0.7;display:${showFurnace?'block':'none'}">
-      <select class="furnace-input"
-        style="width:100%;padding:10px 8px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--bg2);color:var(--text)">
-        <option value="">-</option>
-        <option value="F#1">F#1</option>
-        <option value="F#2">F#2</option>
-        <option value="F#3">F#3</option>
-        <option value="F#4">F#4</option>
-      </select>
-    </div>
-    <div style="flex:1.4">
-      <input class="note-input" placeholder="หมายเหตุ"
-        style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--bg2);color:var(--text)">
-    </div>
-    <button type="button" onclick="removeLotRow(this)" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:#fee2e2;color:#dc2626;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">×</button>
-  `;
+  const furnaceDisplay=showFurnace?'flex':'none';
+  div.innerHTML=''+
+    '<div style="flex:1.2">'+
+      '<input class="lot-input" placeholder="Lot (ถ้ามี)" autocapitalize="characters"'+
+        ' style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--bg2);color:var(--text)">'+
+    '</div>'+
+    '<div style="flex:0.8">'+
+      '<input class="qty-input" type="number" min="1" value="1" inputmode="numeric" placeholder="จำนวน"'+
+        ' style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--bg2);color:var(--text);text-align:right">'+
+    '</div>'+
+    '<div class="furnace-cell" style="flex:0.7;display:'+furnaceDisplay+'">'+
+      '<select class="furnace-input"'+
+        ' style="width:100%;padding:10px 8px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--bg2);color:var(--text)">'+
+        '<option value="">-</option>'+
+        '<option value="F#1">F#1</option>'+
+        '<option value="F#2">F#2</option>'+
+        '<option value="F#3">F#3</option>'+
+        '<option value="F#4">F#4</option>'+
+      '</select>'+
+    '</div>'+
+    '<div style="flex:1.4">'+
+      '<input class="note-input" placeholder="หมายเหตุ"'+
+        ' style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--bg2);color:var(--text)">'+
+    '</div>'+
+    '<button type="button" onclick="removeLotRow(this)" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:#fee2e2;color:#dc2626;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">×</button>';
   wrap.appendChild(div);
 }
 
@@ -1257,7 +1257,9 @@ function getLotRows(){
     const qty=parseFloat(div.querySelector('.qty-input').value)||0;
     const note=(div.querySelector('.note-input').value||'').trim();
     const furnaceEl=div.querySelector('.furnace-input');
-    const furnace=furnaceEl?furnaceEl.value:'';
+    const furnaceCell=div.querySelector('.furnace-cell');
+    const furnaceVisible=furnaceCell&&furnaceCell.style.display!=='none';
+    const furnace=(furnaceVisible&&furnaceEl)?furnaceEl.value:'';
     rows.push({lot,qty,note,furnace});
   });
   return rows;
