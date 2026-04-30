@@ -259,6 +259,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <div class="header-sub" id="ts">--</div>
     </div>
     <div class="wh-toggle">
+      <button class="wh-btn" onclick="switchWH('',this)">ทั้งหมด</button>
       <button class="wh-btn active" onclick="switchWH('78',this)">7-8</button>
       <button class="wh-btn" onclick="switchWH('910',this)">9-10</button>
     </div>
@@ -329,28 +330,28 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
           <div class="err-hint" id="skuErr">❌ รูปแบบไม่ถูกต้อง</div>
         </div>
 
-        <!-- Row 4: รายการ/Lot + จำนวน + หน่วย -->
-        <div class="grid2">
-          <div class="fg">
-            <label>รายการ / Lot</label>
-            <input id="txLot" placeholder="Lot Number" autocapitalize="characters">
-          </div>
-          <div class="fg">
-            <label>หน่วย <span class="req">*</span></label>
-            <select id="txUnit">
-              <option value="ถุง">ถุง</option>
-              <option value="พาเลท">พาเลท</option>
-              <option value="kg">kg</option>
-              <option value="bag">bag</option>
-              <option value="pcs">pcs</option>
-            </select>
-          </div>
+        <!-- Row 4: หน่วย -->
+        <div class="fg">
+          <label>หน่วย <span class="req">*</span></label>
+          <select id="txUnit">
+            <option value="ถุง">ถุง</option>
+            <option value="พาเลท">พาเลท</option>
+            <option value="kg">kg</option>
+            <option value="bag">bag</option>
+            <option value="pcs">pcs</option>
+          </select>
         </div>
 
-        <div class="fg">
-          <label>จำนวน <span class="req">*</span></label>
-          <input type="number" id="txQty" min="1" value="1" inputmode="numeric" placeholder="0">
+        <!-- Row 5: Multi-lot rows -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label style="margin:0;font-weight:700;color:var(--text2)">รายการ Lot / จำนวน <span class="req">*</span></label>
+          <button type="button" onclick="addLotRow()" style="font-size:12px;padding:5px 12px;border-radius:6px;border:1.5px dashed var(--accent);background:transparent;color:var(--accent);font-weight:700;cursor:pointer;font-family:var(--font)">+ เพิ่ม Lot</button>
         </div>
+        <div id="lotRowsWrap"></div>
+
+        <!-- hidden fields ยังคงไว้สำหรับ backward compat -->
+        <input type="hidden" id="txLot" value="">
+        <input type="hidden" id="txQty" value="1">
 
         <!-- Row 5: Zone -->
         <div class="grid2">
@@ -652,89 +653,90 @@ function nowStr(){const n=new Date();return`${todayStr()} ${String(n.getHours())
 function whName(wh){return wh==='78'?'คลัง 7-8':'คลัง 9-10';}
 function allSkus(){const s=new Set();['78','910'].forEach(wh=>ZID.forEach(z=>STOCK[wh][z].forEach(r=>s.add(r.sku))));return[...s];}
 
-// ── Transaction — บันทึกลง Google Sheet ──
+// ── Transaction — บันทึกลง Google Sheet (รองรับ Multi-lot) ──
 function doTx(){
   const type=curTxTab;
   const whid=document.getElementById('txWH').value;
   const zid=document.getElementById('txZone').value;
   const skuRaw=(document.getElementById('txSku').value||'').trim();
   const sku=skuRaw.toUpperCase();
-  const lot=(document.getElementById('txLot').value||'').trim();
-  const qty=parseFloat(document.getElementById('txQty').value)||0;
   const unit=document.getElementById('txUnit').value;
   const date=document.getElementById('txDate').value;
   const time=document.getElementById('txTime').value;
   const sender=(document.getElementById('txSender').value||'').trim();
   const user=(document.getElementById('txUser').value||'').trim();
-  const note=(document.getElementById('txNote').value||'').trim();
   const whn=whName(whid);
 
-  // validate
+  // ดึง lot rows ทั้งหมด
+  const lotRows=getLotRows().filter(function(r){return r.qty>0;});
+
+  // validate header fields
   const errs=[];
   if(!date) errs.push('กรุณาระบุวันที่');
   if(!time) errs.push('กรุณาระบุเวลา');
   if(!sender) errs.push(type==='in'?'กรุณาระบุผู้ส่ง/หน่วยงาน':'กรุณาระบุผู้รับ/หน่วยงาน');
   if(!sku) errs.push('กรุณาระบุรหัสสินค้า');
   else if(!SKU_RE.test(sku)) errs.push('รูปแบบรหัสสินค้าไม่ถูกต้อง');
-  if(!qty||qty<=0) errs.push('กรุณาระบุจำนวน');
+  if(!lotRows.length) errs.push('กรุณาระบุจำนวนอย่างน้อย 1 รายการ');
   if(!user) errs.push('กรุณาระบุผู้ควบคุม');
   if(errs.length){showToast(errs[0],false);return;}
 
-  // check stock locally
-  const rows=STOCK[whid][zid];
-  const cap=ZONES[zid].cap;
-  if(type==='in'){
-    // ไม่จำกัด capacity — รับได้เกินที่ระบุใน layout
-  } else {
-    // กรองตาม SKU และ Lot ให้ตรงกัน
-    const matchRows=rows.filter(r=>r.sku===sku&&(r.lot||'')===(lot||''));
-    const skuTotal=matchRows.reduce((s,r)=>s+r.qty,0);
-    // เช็คว่ามี lot ใดบ้างใน zone นี้สำหรับ sku นี้
-    const availLots=[...new Set(rows.filter(r=>r.sku===sku).map(r=>r.lot||''))];
-    if(!rows.filter(r=>r.sku===sku).length){
-      showToast(`ไม่พบ ${sku} ใน Zone ${zid}`,false);return;
-    }
-    if(!skuTotal){
-      const lotList=availLots.filter(l=>l).map(l=>`"${l}"`).join(', ');
-      if(lotList){
-        showToast(`${sku} มี Lot: ${lotList} กรุณาระบุ Lot ให้ตรง`,false);
-      } else {
-        showToast(`ไม่พบ ${sku} Lot "${lot}" ใน Zone ${zid}`,false);
+  // validate stock สำหรับ เบิกออก
+  if(type==='out'){
+    const rows=STOCK[whid][zid];
+    for(const lr of lotRows){
+      const lot=lr.lot;
+      const qty=lr.qty;
+      const matchRows=rows.filter(function(r){return r.sku===sku&&(r.lot||'')===(lot||'');});
+      const skuTotal=matchRows.reduce(function(s,r){return s+r.qty;},0);
+      const availLots=[...new Set(rows.filter(function(r){return r.sku===sku;}).map(function(r){return r.lot||'';}))];
+      if(!rows.filter(function(r){return r.sku===sku;}).length){
+        showToast('ไม่พบ '+sku+' ใน Zone '+zid,false);return;
       }
-      return;
+      if(!skuTotal){
+        const lotList=availLots.filter(function(l){return l;}).map(function(l){return '"'+l+'"';}).join(', ');
+        if(lotList) showToast(sku+' มี Lot: '+lotList+' กรุณาระบุ Lot ให้ตรง',false);
+        else showToast('ไม่พบ '+sku+' Lot "'+lot+'" ใน Zone '+zid,false);
+        return;
+      }
+      if(qty>skuTotal){showToast(sku+' Lot "'+lot+'" มีเพียง '+skuTotal.toLocaleString()+' '+unit,false);return;}
     }
-    if(qty>skuTotal){showToast(`${sku} Lot "${lot}" มีเพียง ${skuTotal.toLocaleString()} ${unit}`,false);return;}
   }
 
-  // disable button while saving
   const btn=document.getElementById('txSubmitBtn');
   btn.disabled=true;
   btn.textContent='⏳ กำลังบันทึก...';
 
-  const txData={type,wh:whid,zone:zid,sku,lot,qty,unit,date,time,sender,user,note};
-
-  // ── ส่งข้อมูลผ่าน Cloudflare Worker → Apps Script → Google Sheet ──
   const WORKER_URL='https://wms-proxy.esl-ptit.workers.dev';
+  const totalRows=lotRows.length;
+  let doneCount=0;
+  let hasError=false;
 
-  fetch(WORKER_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(txData)
-  })
-  .then(r=>r.json())
-  .then(res=>{
-    commitTx(type,whid,zid,sku,lot,qty,unit,txData,whn);
-    btn.disabled=false;
-    switchTxTab(type);
-    showToast('✅ บันทึกลง Google Sheet เรียบร้อย',true);
-  })
-  .catch(err=>{
-    console.error('Worker error:',err);
-    commitTx(type,whid,zid,sku,lot,qty,unit,txData,whn);
-    btn.disabled=false;
-    switchTxTab(type);
-    showToast('⚠️ บันทึกสำเร็จ (เช็ค internet)',false);
-  });
+  // บันทึกทีละ lot row
+  function saveNext(idx){
+    if(idx>=totalRows){
+      // ทุก lot บันทึกแล้ว
+      btn.disabled=false;
+      switchTxTab(type);
+      showToast(hasError?'⚠️ บันทึกบางรายการสำเร็จ (เช็ค internet)':'✅ บันทึก '+totalRows+' รายการ เรียบร้อย',!hasError);
+      return;
+    }
+    const lr=lotRows[idx];
+    const txData={type,wh:whid,zone:zid,sku,lot:lr.lot,qty:lr.qty,unit,date,time,sender,user,note:lr.note};
+    fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(txData)})
+      .then(function(r){return r.json();})
+      .then(function(){
+        commitTx(type,whid,zid,sku,lr.lot,lr.qty,unit,txData,whn);
+        saveNext(idx+1);
+      })
+      .catch(function(err){
+        console.error('Worker error:',err);
+        hasError=true;
+        commitTx(type,whid,zid,sku,lr.lot,lr.qty,unit,txData,whn);
+        saveNext(idx+1);
+      });
+  }
+  saveNext(0);
 }
 
 // อัปเดต state หลัง save สำเร็จ
@@ -772,6 +774,7 @@ function clearTxForm(){
   // reset เวลาเป็นปัจจุบัน
   const n=new Date();
   document.getElementById('txTime').value=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+  initLotRows();
 }
 
 function onSkuSelectChange(sel){
@@ -843,6 +846,7 @@ let curTxTab='in';
 
 function switchTxTab(tab){
   curTxTab=tab;
+  initLotRows();
   const isIn=tab==='in';
   document.getElementById('tabIn').style.cssText=`flex:1;padding:12px;border-radius:var(--radius-sm);font-size:15px;font-weight:700;font-family:var(--font);border:2px solid ${isIn?'var(--green)':'var(--border2)'};background:${isIn?'var(--green)':'var(--bg2)'};color:${isIn?'#fff':'var(--text3)'};cursor:pointer`;
   document.getElementById('tabOut').style.cssText=`flex:1;padding:12px;border-radius:var(--radius-sm);font-size:15px;font-weight:700;font-family:var(--font);border:2px solid ${!isIn?'var(--red)':'var(--border2)'};background:${!isIn?'var(--red)':'var(--bg2)'};color:${!isIn?'#fff':'var(--text3)'};cursor:pointer`;
@@ -1157,12 +1161,63 @@ function renderHist(){
 function switchWH(id,btn){
   curWH=id;selZone=null;
   document.querySelectorAll('.wh-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
-  document.getElementById('txWH').value=id;
+  if(id) document.getElementById('txWH').value=id;
   renderMap();renderStats();renderStock();
 }
 function updateTime(){
   const n=new Date();
   document.getElementById('ts').textContent=`${n.toLocaleDateString('th-TH')} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+}
+
+
+// ── Multi-lot entry ──────────────────────────────────────────────────────────
+function initLotRows(){
+  const wrap=document.getElementById('lotRowsWrap');
+  if(!wrap)return;
+  wrap.innerHTML='';
+  addLotRow(); // เริ่มด้วย 1 row
+}
+
+function addLotRow(){
+  const wrap=document.getElementById('lotRowsWrap');
+  if(!wrap)return;
+  const idx=wrap.children.length;
+  const div=document.createElement('div');
+  div.className='lot-row';
+  div.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:8px';
+  div.innerHTML=`
+    <div style="flex:1.2">
+      <input class="lot-input" placeholder="Lot (ถ้ามี)" autocapitalize="characters"
+        style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--bg2);color:var(--text)">
+    </div>
+    <div style="flex:1">
+      <input class="qty-input" type="number" min="1" value="1" inputmode="numeric" placeholder="จำนวน"
+        style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--bg2);color:var(--text);text-align:right">
+    </div>
+    <div style="flex:1.5">
+      <input class="note-input" placeholder="หมายเหตุ (optional)"
+        style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--bg2);color:var(--text)">
+    </div>
+    <button type="button" onclick="removeLotRow(this)" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:#fee2e2;color:#dc2626;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">×</button>
+  `;
+  wrap.appendChild(div);
+}
+
+function removeLotRow(btn){
+  const wrap=document.getElementById('lotRowsWrap');
+  if(wrap.children.length<=1){showToast('ต้องมีอย่างน้อย 1 รายการ',false);return;}
+  btn.closest('.lot-row').remove();
+}
+
+function getLotRows(){
+  const rows=[];
+  document.querySelectorAll('#lotRowsWrap .lot-row').forEach(function(div){
+    const lot=(div.querySelector('.lot-input').value||'').trim();
+    const qty=parseFloat(div.querySelector('.qty-input').value)||0;
+    const note=(div.querySelector('.note-input').value||'').trim();
+    rows.push({lot,qty,note});
+  });
+  return rows;
 }
 
 // ── Touch swipe to close sheet ──
