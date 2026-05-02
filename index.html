@@ -1736,7 +1736,7 @@ function exportStockPreview(){
       +'<div class="preview-sum-item">รายการทั้งหมด: <b>'+rows.length+'</b></div>'
       +'<div class="preview-sum-item">รวมจำนวน: <b>'+totalQty.toLocaleString()+'</b></div>'
     +'</div>'
-    +'<div style="padding:10px 14px;text-align:right"><button onclick="window.print()" style="padding:10px 18px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;font-family:var(--font);border:none;background:#1e3a5f;color:#fff;cursor:pointer">🖨 พิมพ์</button></div>'
+    +'<div style="padding:10px 14px;text-align:right"><button onclick="printStockReport()" style="padding:10px 18px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;font-family:var(--font);border:none;background:#1e3a5f;color:#fff;cursor:pointer">🖨 พิมพ์</button></div>'
   +'</div>';
 }
 
@@ -1769,6 +1769,66 @@ function exportStockCSV(){
   a.click();
   URL.revokeObjectURL(url);
   showToast('ดาวน์โหลด Stock CSV เรียบร้อยแล้ว',true);
+}
+
+// ── Print Stock Report — ใช้ iframe ซ่อน พิมพ์โดยไม่ออกจากหน้า ──
+function printStockReport(){
+  const tableEl=document.querySelector('.stock-table');
+  const headerEl=document.querySelector('#exportPreviewArea .preview-header');
+  const summaryEl=document.querySelector('#exportPreviewArea .preview-summary');
+  if(!tableEl){showToast('กรุณาดู Preview ก่อน',false);return;}
+
+  const tableHTML=tableEl.outerHTML;
+  const headerHTML=headerEl?headerEl.outerHTML:'';
+  const summaryHTML=summaryEl?summaryEl.outerHTML:'';
+
+  // ลบ iframe เก่าถ้ามี
+  const oldFrame=document.getElementById('stockPrintFrame');
+  if(oldFrame) oldFrame.remove();
+
+  const printCSS=`
+    @page { size: A4 landscape; margin: 8mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Sarabun','TH Sarabun New',Arial,sans-serif; font-size: 9px; background:#fff; color:#111; }
+    .preview-header { background:#1e3a5f; color:#fff; padding:10px 14px; margin-bottom:8px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .preview-company { font-size:14px; font-weight:800; }
+    .preview-title { font-size:11px; margin-top:2px; opacity:0.85; }
+    table { table-layout:fixed; width:100%; border-collapse:collapse; font-size:8.5px; }
+    col.col-date    { width:10%; }
+    col.col-wh      { width:9%; }
+    col.col-zone    { width:4%; }
+    col.col-sku     { width:9%; }
+    col.col-furnace { width:6%; }
+    col.col-lot     { width:11%; }
+    col.col-qty     { width:7%; }
+    col.col-unit    { width:4%; }
+    col.col-note    { width:40%; }
+    th { background:#e8f0fe; color:#1e3a5f; font-weight:700; padding:5px 4px; text-align:left; border:1px solid #b8cef0; word-break:break-word; white-space:normal; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    td { padding:5px 4px; border:1px solid #dde5f0; vertical-align:top; word-break:break-word; white-space:normal; }
+    tr:nth-child(even) td { background:#f7f9ff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .preview-summary { margin-top:8px; font-size:10px; font-weight:600; }
+    .preview-sum-item { display:inline; margin-right:16px; }
+  `;
+
+  const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stock Report</title>'
+    +'<style>'+printCSS+'</style></head><body>'
+    +headerHTML+tableHTML+summaryHTML
+    +'</body></html>';
+
+  const iframe=document.createElement('iframe');
+  iframe.id='stockPrintFrame';
+  iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+
+  // รอ iframe โหลดเสร็จแล้วค่อย print
+  iframe.onload=function(){
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  };
 }
 
 // init export date defaults
