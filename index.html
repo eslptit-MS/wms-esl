@@ -246,8 +246,21 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   .preview-wrap { border: none; border-radius: 0; }
   button { display: none !important; }
   .preview-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .preview-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .preview-table { table-layout: fixed; width: 100%; font-size: 9px; }
+  .preview-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 9px; padding: 5px 4px; word-break: break-word; }
+  .preview-table td { font-size: 9px; padding: 5px 4px; word-break: break-word; white-space: normal; }
   .preview-table tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Stock report column widths */
+  .preview-table.stock-table col.col-date    { width: 10%; }
+  .preview-table.stock-table col.col-wh      { width: 9%; }
+  .preview-table.stock-table col.col-zone    { width: 5%; }
+  .preview-table.stock-table col.col-sku     { width: 9%; }
+  .preview-table.stock-table col.col-furnace { width: 7%; }
+  .preview-table.stock-table col.col-lot     { width: 10%; }
+  .preview-table.stock-table col.col-qty     { width: 8%; }
+  .preview-table.stock-table col.col-unit    { width: 5%; }
+  .preview-table.stock-table col.col-note    { width: 37%; }
+  @page { size: A4 landscape; margin: 10mm; }
 }
 </style>
 </head>
@@ -1674,15 +1687,15 @@ function exportStockPreview(){
   const totalQty=rows.reduce(function(s,r){return s+(r.qty||0);},0);
   const tableRows=rows.map(function(r){
     return'<tr>'
-      +'<td>'+r.date+'</td>'
+      +'<td style="white-space:nowrap">'+r.date+'</td>'
       +'<td>'+r.wh+'</td>'
-      +'<td style="font-weight:600">'+r.zone+'</td>'
-      +'<td style="font-family:monospace;font-weight:600">'+r.sku+'</td>'
-      +'<td>'+(r.furnace?'🔥 '+r.furnace:'')+'</td>'
-      +'<td>'+r.lot+'</td>'
-      +'<td style="text-align:right;font-family:monospace">'+(r.qty||0).toLocaleString()+'</td>'
-      +'<td>'+r.unit+'</td>'
-      +'<td style="font-size:12px;color:#555">'+r.note+'</td>'
+      +'<td style="font-weight:700;text-align:center">'+r.zone+'</td>'
+      +'<td style="font-family:monospace;font-weight:700;color:#1e3a5f">'+r.sku+'</td>'
+      +'<td style="font-weight:700;color:#e55a00;text-align:center">'+(r.furnace?'🔥 '+r.furnace:'')+'</td>'
+      +'<td style="font-family:monospace">'+r.lot+'</td>'
+      +'<td style="text-align:right;font-family:monospace;font-weight:700">'+(r.qty||0).toLocaleString()+'</td>'
+      +'<td style="text-align:center">'+r.unit+'</td>'
+      +'<td style="color:#444;word-break:break-word">'+r.note+'</td>'
       +'</tr>';
   }).join('');
   el.innerHTML='<div class="preview-wrap">'
@@ -1690,7 +1703,12 @@ function exportStockPreview(){
       +'<div class="preview-company">บริษัท อีสเทิร์นซิลิเกต จำกัด</div>'
       +'<div class="preview-title">รายงาน Stock คงเหลือ ณ วันที่ '+nowStr()+'</div>'
     +'</div>'
-    +'<div style="overflow-x:auto"><table class="preview-table"><thead><tr>'
+    +'<div style="overflow-x:auto"><table class="preview-table stock-table">'
+    +'<colgroup>'
+      +'<col class="col-date"><col class="col-wh"><col class="col-zone"><col class="col-sku">'
+      +'<col class="col-furnace"><col class="col-lot"><col class="col-qty"><col class="col-unit"><col class="col-note">'
+    +'</colgroup>'
+    +'<thead><tr>'
       +'<th>วันที่รับ</th><th>คลัง</th><th>Zone</th><th>รหัสสินค้า</th><th>Furnace</th><th>Lot</th><th>จำนวนคงเหลือ</th><th>หน่วย</th><th>หมายเหตุ</th>'
     +'</tr></thead><tbody>'+tableRows+'</tbody></table></div>'
     +'<div class="preview-summary">'
