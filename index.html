@@ -766,7 +766,7 @@ function commitTx(type,whid,zid,sku,lot,qty,unit,txData,whn){
   if(type==='in'){
     const ex=rows.find(r=>r.sku===sku&&(r.lot||'')===(lot||''));
     if(ex)ex.qty+=qty;
-    else rows.push({sku,name:'',qty,lot,unit,date:txData.date||todayStr(),furnace:txData.furnace||''});
+    else rows.push({sku,name:'',qty,lot,unit,date:txData.date||todayStr(),furnace:txData.furnace||'',note:txData.note||''});
     showToast(`✅ รับเข้า Zone ${zid} | ${sku} ${qty.toLocaleString()} ${unit} — บันทึกแล้ว`,true);
   } else {
     let rem=qty;
@@ -1660,22 +1660,45 @@ function exportStockPreview(){
   ['78','910'].forEach(function(wh){
     if(wf&&wh!==(wf==='คลัง 7-8'?'78':'910'))return;
     ZID.forEach(function(z){
-      STOCK[wh][z].forEach(function(r){
+      (STOCK[wh][z]||[]).forEach(function(r){
         if(skuF&&r.sku!==skuF)return;
-        rows.push({wh:whName(wh),zone:z,sku:r.sku,lot:r.lot||'',qty:r.qty||0,unit:r.unit||'ถุง'});
+        rows.push({wh:whName(wh),zone:z,sku:r.sku,lot:r.lot||'',qty:r.qty||0,unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||'',note:r.note||''});
       });
     });
-    STOCK[wh]['NC'].forEach(function(r){
+    (STOCK[wh]['NC']||[]).forEach(function(r){
       if(skuF&&r.sku!==skuF)return;
-      rows.push({wh:whName(wh),zone:'NC',sku:r.sku,lot:r.lot||'',qty:r.qty||0,unit:r.unit||'ถุง'});
+      rows.push({wh:whName(wh),zone:'NC',sku:r.sku,lot:r.lot||'',qty:r.qty||0,unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||'',note:r.note||''});
     });
   });
   if(!rows.length){el.innerHTML='<div class="no-data">ไม่พบ Stock ในคลังที่เลือก</div>';return;}
   const totalQty=rows.reduce(function(s,r){return s+(r.qty||0);},0);
   const tableRows=rows.map(function(r){
-    return'<tr><td>'+r.wh+'</td><td style="font-weight:600">'+r.zone+'</td><td style="font-family:monospace;font-weight:600">'+r.sku+'</td><td>'+r.lot+'</td><td style="text-align:right;font-family:monospace">'+(r.qty||0).toLocaleString()+'</td><td>'+r.unit+'</td></tr>';
+    return'<tr>'
+      +'<td>'+r.date+'</td>'
+      +'<td>'+r.wh+'</td>'
+      +'<td style="font-weight:600">'+r.zone+'</td>'
+      +'<td style="font-family:monospace;font-weight:600">'+r.sku+'</td>'
+      +'<td>'+(r.furnace?'🔥 '+r.furnace:'')+'</td>'
+      +'<td>'+r.lot+'</td>'
+      +'<td style="text-align:right;font-family:monospace">'+(r.qty||0).toLocaleString()+'</td>'
+      +'<td>'+r.unit+'</td>'
+      +'<td style="font-size:12px;color:#555">'+r.note+'</td>'
+      +'</tr>';
   }).join('');
-  el.innerHTML='<div class="preview-wrap"><div class="preview-header"><div class="preview-company">บริษัท อีสเทิร์นซิลิเกต จำกัด</div><div class="preview-title">รายงาน Stock คงเหลือ ณ วันที่ '+nowStr()+'</div></div><div style="overflow-x:auto"><table class="preview-table"><thead><tr><th>คลัง</th><th>Zone</th><th>รหัสสินค้า</th><th>Lot</th><th>จำนวนคงเหลือ</th><th>หน่วย</th></tr></thead><tbody>'+tableRows+'</tbody></table></div><div class="preview-summary"><div class="preview-sum-item">รายการทั้งหมด: <b>'+rows.length+'</b></div><div class="preview-sum-item">รวมจำนวน: <b>'+totalQty.toLocaleString()+'</b></div></div><div style="padding:10px 14px;text-align:right"><button onclick="window.print()" style="padding:10px 18px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;font-family:var(--font);border:none;background:#1e3a5f;color:#fff;cursor:pointer">🖨 พิมพ์</button></div></div>';
+  el.innerHTML='<div class="preview-wrap">'
+    +'<div class="preview-header">'
+      +'<div class="preview-company">บริษัท อีสเทิร์นซิลิเกต จำกัด</div>'
+      +'<div class="preview-title">รายงาน Stock คงเหลือ ณ วันที่ '+nowStr()+'</div>'
+    +'</div>'
+    +'<div style="overflow-x:auto"><table class="preview-table"><thead><tr>'
+      +'<th>วันที่รับ</th><th>คลัง</th><th>Zone</th><th>รหัสสินค้า</th><th>Furnace</th><th>Lot</th><th>จำนวนคงเหลือ</th><th>หน่วย</th><th>หมายเหตุ</th>'
+    +'</tr></thead><tbody>'+tableRows+'</tbody></table></div>'
+    +'<div class="preview-summary">'
+      +'<div class="preview-sum-item">รายการทั้งหมด: <b>'+rows.length+'</b></div>'
+      +'<div class="preview-sum-item">รวมจำนวน: <b>'+totalQty.toLocaleString()+'</b></div>'
+    +'</div>'
+    +'<div style="padding:10px 14px;text-align:right"><button onclick="window.print()" style="padding:10px 18px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;font-family:var(--font);border:none;background:#1e3a5f;color:#fff;cursor:pointer">🖨 พิมพ์</button></div>'
+  +'</div>';
 }
 
 function exportStockCSV(){
@@ -1685,18 +1708,18 @@ function exportStockCSV(){
   ['78','910'].forEach(function(wh){
     if(wf&&wh!==(wf==='คลัง 7-8'?'78':'910'))return;
     ZID.forEach(function(z){
-      STOCK[wh][z].forEach(function(r){
+      (STOCK[wh][z]||[]).forEach(function(r){
         if(skuF&&r.sku!==skuF)return;
-        rows.push([whName(wh),z,r.sku,r.lot||'',r.qty||0,r.unit||'ถุง']);
+        rows.push([r.date||'',whName(wh),z,r.sku,r.furnace||'',r.lot||'',r.qty||0,r.unit||'ถุง',r.note||'']);
       });
     });
-    STOCK[wh]['NC'].forEach(function(r){
+    (STOCK[wh]['NC']||[]).forEach(function(r){
       if(skuF&&r.sku!==skuF)return;
-      rows.push([whName(wh),'NC',r.sku,r.lot||'',r.qty||0,r.unit||'ถุง']);
+      rows.push([r.date||'',whName(wh),'NC',r.sku,r.furnace||'',r.lot||'',r.qty||0,r.unit||'ถุง',r.note||'']);
     });
   });
   if(!rows.length){showToast('ไม่พบ Stock ในคลังที่เลือก',false);return;}
-  const headers=['คลัง','Zone','รหัสสินค้า','Lot','จำนวนคงเหลือ','หน่วย'];
+  const headers=['วันที่รับ','คลัง','Zone','รหัสสินค้า','Furnace','Lot','จำนวนคงเหลือ','หน่วย','หมายเหตุ'];
   const bom='\uFEFF';
   const csv=bom+[headers,...rows].map(function(r){return r.map(function(v){return'"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
@@ -1730,9 +1753,9 @@ function loadStockFromSheet(){
           var wh=r.wh==='คลัง 9-10'?'910':'78';
           if(!STOCK[wh]||!STOCK[wh][r.zone])return;
           if(r.zone==='NC'){
-            STOCK[wh]['NC'].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||''});
+            STOCK[wh]['NC'].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||'',note:r.note||''});
           } else if(STOCK[wh][r.zone]!==undefined){
-            STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||''});
+            STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||'',note:r.note||''});
           }
         });
       }
