@@ -664,6 +664,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 </div>
 
 <script>
+// ── Secret Key สำหรับยืนยันตัวตนกับ wms-proxy (Cloudflare Worker) ──
+// ⚠️ เปลี่ยนค่าด้านล่างให้ตรงกับค่าที่ตั้งไว้ใน Cloudflare > wms-proxy > Settings > Variables and Secrets > WMS_SECRET_KEY
+// ค่านี้จะอยู่ใน source code ที่เปิดดูได้จาก GitHub (ไม่ใช่ความลับสมบูรณ์)
+// แต่ป้องกันคนทั่วไป/บอทที่เดา URL มั่วๆได้เกือบทั้งหมด — ถ้าต้องการปลอดภัยสูงสุดต้องใช้ระบบ login จริง
+const WMS_KEY = 'ใส่ค่า_secret_key_ตรงกับที่ตั้งใน_Cloudflare_ตรงนี้';
+
 // ── Zone definitions ──
 const ZONES={
   P:{cap:180,f:'6×10×3'},Q:{cap:180,f:'6×10×3'},R:{cap:180,f:'6×10×3'},S:{cap:180,f:'6×10×3'},T:{cap:180,f:'6×10×3'},
@@ -774,7 +780,7 @@ function doTx(){
     btn.textContent='⏳ บันทึก '+(idx+1)+'/'+totalRows+'...';
 
     const lr=lotRows[idx];
-    const txData={type,wh:whid,zone:zid,sku,lot:lr.lot,qty:lr.qty,unit,date,time,sender,user,note:lr.note,furnace:lr.furnace||''};
+    const txData={key:WMS_KEY,type,wh:whid,zone:zid,sku,lot:lr.lot,qty:lr.qty,unit,date,time,sender,user,note:lr.note,furnace:lr.furnace||''};
 
     fetchWithTimeout(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(txData)},15000)
       .then(function(r){return r.json();})
@@ -849,7 +855,7 @@ function onSkuSelectChange(sel){
 
 // ── โหลด Product Master จาก Sheet ──
 function loadProducts(){
-  fetch('https://wms-proxy.esl-ptit.workers.dev?action=getProducts')
+  fetch('https://wms-proxy.esl-ptit.workers.dev?action=getProducts',{headers:{'X-WMS-Key':WMS_KEY}})
     .then(function(r){return r.json();})
     .then(function(res){
       if(!res.success||!res.data) return;
@@ -1592,7 +1598,7 @@ function sheetRowToLog(r){
 function fetchLogsAndRun(callback){
   const el=document.getElementById('exportPreviewArea');
   if(el) el.innerHTML='<div class="no-data">⏳ กำลังโหลดข้อมูล...</div>';
-  fetch('https://wms-proxy.esl-ptit.workers.dev?action=getLogs')
+  fetch('https://wms-proxy.esl-ptit.workers.dev?action=getLogs',{headers:{'X-WMS-Key':WMS_KEY}})
     .then(function(r){return r.json();})
     .then(function(res){
       if(!res.success||!res.data){
@@ -1843,7 +1849,7 @@ function initExportDates(){
 const WORKER_URL_BASE='https://wms-proxy.esl-ptit.workers.dev';
 
 function loadStockFromSheet(){
-  fetch(WORKER_URL_BASE+'?action=getStock')
+  fetch(WORKER_URL_BASE+'?action=getStock',{headers:{'X-WMS-Key':WMS_KEY}})
     .then(function(r){return r.json();})
     .then(function(res){
       if(res.success&&res.data&&res.data.length){
