@@ -491,8 +491,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
               <option value="คลัง 9-10">คลัง 9-10</option>
             </select>
           </div>
-          <div class="fg" id="expSkuGroup" style="display:none">
-            <label>SKU</label>
+          <div class="fg" id="expSkuGroup">
+            <label>SKU / รหัส</label>
             <select id="expSku">
               <option value="">SKU ทั้งหมด</option>
             </select>
@@ -668,7 +668,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ⚠️ เปลี่ยนค่าด้านล่างให้ตรงกับค่าที่ตั้งไว้ใน Cloudflare > wms-proxy > Settings > Variables and Secrets > WMS_SECRET_KEY
 // ค่านี้จะอยู่ใน source code ที่เปิดดูได้จาก GitHub (ไม่ใช่ความลับสมบูรณ์)
 // แต่ป้องกันคนทั่วไป/บอทที่เดา URL มั่วๆได้เกือบทั้งหมด — ถ้าต้องการปลอดภัยสูงสุดต้องใช้ระบบ login จริง
-const WMS_KEY = 'esl-wms-2569';
+const WMS_KEY = 'ใส่ค่า_secret_key_ตรงกับที่ตั้งใน_Cloudflare_ตรงนี้';
 
 // ── Zone definitions ──
 const ZONES={
@@ -1560,7 +1560,7 @@ function showPage(name,btn){
   if(btn)btn.classList.add('active');
   document.getElementById('bodyScroll').scrollTop=0;
   if(name==='stock')renderStock();
-  if(name==='export'){syncExpWH();initExportDates();document.getElementById('exportPreviewArea').innerHTML='';}
+  if(name==='export'){syncExpWH();initExportDates();initSkuFilter();document.getElementById('exportPreviewArea').innerHTML='';}
   if(name==='history')renderHist();
   if(name==='tank')renderTankPage();
 }
@@ -1618,9 +1618,12 @@ function filterLogs(logs){
   const dateTo=document.getElementById('expDateTo').value;
   const wf=document.getElementById('expWH').value;
   const tf=document.getElementById('expType').value;
+  const skuEl=document.getElementById('expSku');
+  const skuF=(skuEl&&skuEl.value)||'';
   return logs.filter(function(l){
     if(tf&&l.type!==tf)return false;
     if(wf&&l.wh!==wf)return false;
+    if(skuF&&l.sku!==skuF)return false;
     if(dateFrom&&l.date<dateFrom)return false;
     if(dateTo&&l.date>dateTo)return false;
     return true;
@@ -1676,7 +1679,8 @@ function exportCSV(){
     a.href=url;
     const dateFrom=document.getElementById('expDateFrom').value||'all';
     const dateTo=document.getElementById('expDateTo').value||'all';
-    a.download='WMS_Export_'+(tf||'all')+'_'+dateFrom+'_'+dateTo+'.csv';
+    const skuTag=document.getElementById('expSku').value?('_'+document.getElementById('expSku').value):'';
+    a.download='WMS_Export_'+(tf||'all')+skuTag+'_'+dateFrom+'_'+dateTo+'.csv';
     a.click();
     URL.revokeObjectURL(url);
     showToast('ดาวน์โหลด CSV เรียบร้อยแล้ว',true);
@@ -1903,11 +1907,9 @@ document.getElementById('expDateFrom').addEventListener('change',function(){});
 document.getElementById('expDateTo').addEventListener('change',function(){});
 document.getElementById('expWH').addEventListener('change',function(){});
 document.getElementById('expType').addEventListener('change',function(){
-  const t=this.value;
-  const grp=document.getElementById('expSkuGroup');
-  if(grp) grp.style.display=(t==='stock')?'':'none';
-  if(t==='stock') initSkuFilter();
+  initSkuFilter();
 });
+document.getElementById('expSku').addEventListener('change',function(){});
 
 // ซิงค์ expWH ให้ตรงกับคลังที่เลือกอยู่ตอนเข้าหน้า Export
 function syncExpWH(){
