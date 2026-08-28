@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Factory Stock — ESL</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root {
+  --bg:       #f8fafc;
+  --bg2:      #ffffff;
+  --bg3:      #f1f5f9;
+  --border:   #e2e8f0;
+  --border2:  #cbd5e1;
+  --text:     #0f172a;
+  --text2:    #334155;
+  --text3:    #64748b;
+  --accent:   #2563eb;
+  --accent2:  #1d4ed8;
+  --green:    #16a34a;
+  --green-bg: #f0fdf4;
+  --green-t:  #15803d;
+  --red:      #dc2626;
+  --red-bg:   #fef2f2;
+  --red-t:    #b91c1c;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --amber-t:  #92400e;
+  --purple:   #7c3aed;
+  --radius:   14px;
+  --radius-sm:10px;
+  --font:     'Sarabun', sans-serif;
+  --mono:     'IBM Plex Mono', monospace;
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
+body { display: flex; justify-content: center; }
+.app { width: 100%; max-width: 440px; min-height: 100dvh; background: var(--bg); display: flex; flex-direction: column; position: relative; }
+
+.header { padding: 14px 16px 12px; background: var(--bg2); border-bottom: 1px solid var(--border); }
+.header-title { font-size: 19px; font-weight: 700; letter-spacing: -.3px; }
+.header-sub { font-size: 12.5px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+
+.content { flex: 1; overflow-y: auto; padding: 14px 14px 90px; }
+
+.sec-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); margin: 14px 0 8px; }
+.sec-title:first-child { margin-top: 0; }
+
+.stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.stat-card { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 11px 9px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.stat-label { font-size: 12px; color: var(--text3); font-weight: 600; }
+.stat-val { font-size: 21px; font-weight: 700; font-family: var(--mono); line-height: 1.3; }
+.stat-unit { font-size: 11px; color: var(--text3); font-weight: 500; }
+
+.zone-card { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+.zone-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.zone-name { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+.zone-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.zone-tag.ms { background: #dbeafe; color: #1d4ed8; }
+.zone-tag.pt { background: #fef3c7; color: #92400e; }
+.zone-sku-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px dashed var(--border); }
+.zone-sku-row:first-of-type { border-top: none; }
+.sku-chip { font-family: var(--mono); font-weight: 700; font-size: 13px; padding: 2px 7px; border-radius: 6px; }
+.chip-25 { background: #fed7aa; color: #9a3412; }
+.chip-32 { background: #bbf7d0; color: #166534; }
+.chip-32c { background: #bfdbfe; color: #1e40af; }
+.zone-sku-qty { font-family: var(--mono); font-weight: 700; font-size: 14px; }
+.zone-empty { color: var(--text3); font-size: 13px; padding: 4px 0; }
+
+.mole-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 20px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); }
+.mole-pill .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,.15); }
+
+.form-card { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+.form-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+.fg { margin-bottom: 12px; }
+.fg label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 5px; font-weight: 600; }
+.req { color: var(--red); }
+.fg input, .fg select { width: 100%; background: var(--bg3); border: 1.5px solid var(--border2); color: var(--text); font-family: var(--font); font-size: 15px; font-weight: 500; padding: 12px 12px; border-radius: var(--radius-sm); appearance: none; }
+.fg .hint { font-size: 12px; color: var(--text3); margin-top: 4px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.btn { width: 100%; padding: 15px; border-radius: var(--radius); font-size: 16px; font-weight: 700; font-family: var(--font); border: none; cursor: pointer; }
+.btn-in { background: var(--green); color: #fff; box-shadow: 0 2px 8px rgba(22,163,74,.3); }
+.btn-out { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(37,99,235,.3); }
+.btn:disabled { opacity: .5; }
+
+.lot-card { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.lot-card.sel { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.15); background: #eff6ff; }
+.checkbox { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; }
+.lot-card.sel .checkbox { background: var(--accent); border-color: var(--accent); }
+.lot-info { flex: 1; }
+.lot-top { display: flex; gap: 6px; align-items: center; margin-bottom: 3px; flex-wrap: wrap; }
+.lot-code { font-family: var(--mono); font-weight: 700; font-size: 14px; }
+.lot-meta { font-size: 12px; color: var(--text3); }
+.lot-qty { text-align: right; }
+.lot-qty-num { font-family: var(--mono); font-weight: 700; font-size: 17px; }
+.lot-qty-lbl { font-size: 11px; color: var(--text3); }
+.qty-stepper { display: none; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.lot-card.sel .qty-stepper { display: flex; }
+.step-btn { width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--border2); background: var(--bg3); font-size: 16px; font-weight: 700; }
+.step-val { font-family: var(--mono); font-weight: 700; font-size: 15px; width: 44px; text-align: center; }
+.step-max { font-size: 11px; color: var(--text3); }
+
+.sticky-footer { position: sticky; bottom: 0; background: var(--bg2); border-top: 1.5px solid var(--border); padding: 12px 14px calc(12px + var(--safe-bot)); margin: 12px -14px -90px; box-shadow: 0 -2px 10px rgba(0,0,0,.05); }
+.footer-summary { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); margin-bottom: 8px; font-weight: 600; }
+
+.pend-card { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 13px 14px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+.pend-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.pend-status { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--amber-bg); color: var(--amber-t); white-space: nowrap; }
+.split-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.split-row select, .split-row input { flex: 1; background: var(--bg3); border: 1.5px solid var(--border2); border-radius: 8px; padding: 9px 10px; font-family: var(--font); font-size: 13.5px; }
+.bundle-lots { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.bundle-lot-chip { font-family: var(--mono); font-size: 11.5px; font-weight: 600; background: var(--bg3); border: 1px solid var(--border); border-radius: 7px; padding: 3px 8px; color: var(--text2); }
+.auto-preview { background: #fffbeb; border: 1.5px dashed #fcd34d; border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 10px; }
+.auto-preview-lbl { font-size: 10.5px; font-weight: 700; color: var(--amber-t); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.auto-preview-code { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); }
+.auto-preview-remark { font-family: var(--mono); font-size: 12.5px; color: var(--text2); margin-top: 3px; }
+
+.hist-row { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 7px; display: flex; justify-content: space-between; align-items: center; }
+.hist-left { display: flex; flex-direction: column; gap: 2px; }
+.hist-type { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 20px; align-self: flex-start; }
+.hist-in { background: var(--green-bg); color: var(--green-t); }
+.hist-out { background: #dbeafe; color: #1d4ed8; }
+.hist-lot { font-family: var(--mono); font-size: 13px; font-weight: 700; margin-top: 2px; }
+.hist-sub { font-size: 11.5px; color: var(--text3); }
+.hist-right { text-align: right; }
+.hist-qty { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+.hist-time { font-size: 11px; color: var(--text3); }
+
+.floor-plan { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+.floor-canvas { position: relative; width: 100%; height: 260px; background: var(--bg3); border-radius: var(--radius-sm); border: 1px dashed var(--border2); overflow: hidden; }
+.floor-block { position: absolute; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 3px; cursor: pointer; transition: transform .1s; }
+.floor-block:active { transform: scale(.95); }
+.floor-block .fb-name { font-size: 12px; font-family: var(--mono); font-weight: 700; color: #fff; }
+.floor-block .fb-qty { font-size: 10px; color: rgba(255,255,255,.9); margin-top: 2px; font-weight: 600; }
+.floor-block.ctx { cursor: default; background: var(--bg2) !important; border: 1.5px dashed var(--border2); }
+.floor-block.ctx .fb-name { color: var(--text3); font-size: 10.5px; font-weight: 600; }
+.floor-lane { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-left: 2px dashed var(--border2); border-right: 2px dashed var(--border2); background: repeating-linear-gradient(180deg, rgba(100,116,139,.06) 0, rgba(100,116,139,.06) 8px, transparent 8px, transparent 16px); }
+.floor-lane .lane-arrow { font-size: 15px; font-weight: 700; color: var(--text3); line-height: 1.1; }
+.floor-lane .lane-lbl { font-size: 9px; font-weight: 700; color: var(--text3); letter-spacing: .5px; }
+.floor-legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 10px; }
+.floor-leg-item { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text3); font-weight: 600; }
+.floor-leg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+.sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100; opacity: 0; pointer-events: none; transition: opacity .25s; }
+.sheet-overlay.show { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; bottom: 0; left: 50%; width: 100%; max-width: 440px; transform: translateX(-50%) translateY(100%); background: var(--bg2); border-radius: 20px 20px 0 0; border-top: 1.5px solid var(--border); z-index: 101; transition: transform .3s cubic-bezier(.32,0,.67,0); max-height: 75dvh; overflow-y: auto; padding-bottom: var(--safe-bot); box-shadow: 0 -4px 20px rgba(0,0,0,.12); }
+.sheet.show { transform: translateX(-50%) translateY(0); }
+.sheet-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 10px auto 4px; }
+.sheet-body { padding: 6px 16px 22px; }
+.sheet-zone-name { font-size: 23px; font-weight: 700; font-family: var(--mono); }
+.sheet-meta { font-size: 13px; color: var(--text3); margin-top: 2px; font-weight: 500; }
+.sku-row { background: var(--bg3); border-radius: var(--radius-sm); padding: 12px 14px; margin: 12px 0 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); }
+.sku-code { font-family: var(--mono); font-size: 14.5px; font-weight: 700; }
+.sku-lot { font-size: 12px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+.sku-qty { font-size: 19px; font-weight: 700; font-family: var(--mono); text-align: right; }
+.sku-qty-label { font-size: 11px; color: var(--text3); text-align: right; }
+
+.filter-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 4px; }
+.chip { flex-shrink: 0; font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 20px; border: 1.5px solid var(--border2); background: var(--bg2); color: var(--text3); }
+.chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.nav { display: flex; background: var(--bg2); border-top: 1px solid var(--border); position: sticky; bottom: 0; padding-bottom: var(--safe-bot); }
+.nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 2px 7px; border: none; background: transparent; color: var(--text3); font-size: 11px; font-weight: 600; font-family: var(--font); }
+.nav-btn.active { color: var(--accent); }
+.nav-ic { font-size: 19px; line-height: 1; }
+
+.page { display: none; }
+.page.active { display: block; }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text3); }
+.empty-state .big { font-size: 34px; margin-bottom: 8px; }
+
+.toast { position: fixed; bottom: calc(80px + var(--safe-bot)); left: 50%; transform: translateX(-50%) translateY(20px); width: calc(100% - 24px); max-width: 416px; z-index: 200; background: var(--bg2); border: 1.5px solid var(--border2); border-radius: var(--radius); padding: 14px 16px; font-size: 14.5px; font-weight: 500; opacity: 0; transition: all .3s; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.ok { border-color: #86efac; background: var(--green-bg); color: var(--green-t); }
+.toast.err { border-color: #fca5a5; background: var(--red-bg); color: var(--red-t); }
+
+/* PIN overlay — เหมือนรูปแบบใน warehouse_v32.html */
+#pinOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300; align-items: center; justify-content: center; }
+#pinOverlay .pin-box { background: var(--bg2); border-radius: var(--radius); padding: 22px; width: calc(100% - 60px); max-width: 300px; text-align: center; }
+#pinInput { width: 100%; text-align: center; letter-spacing: 6px; font-size: 22px; font-family: var(--mono); padding: 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border2); background: var(--bg3); margin: 10px 0 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="header-title" id="pageTitle">สต๊อกโรงงาน — ภาพรวม</div>
+    <div class="header-sub" id="pageSub">กำลังโหลด…</div>
+  </div>
+
+  <div class="content">
+
+    <!-- ================= PAGE: DASHBOARD ================= -->
+    <div class="page active" id="page-home">
+      <div class="sec-title">ยอดรวมทั้งโรงงาน (ถุง)</div>
+      <div class="stat-row" id="homeStats"></div>
+      <div class="sec-title">พื้นที่จัดเก็บ (Zone)</div>
+      <div id="homeZones"></div>
+    </div>
+
+    <!-- ================= PAGE: LAYOUT ================= -->
+    <div class="page" id="page-layout">
+      <div class="sec-title">ผังพื้นที่ MS ในโรงงาน — แตะเพื่อดูรายการ</div>
+      <div class="floor-plan">
+        <div class="floor-canvas">
+          <div class="floor-block" data-zone="Stock-PT" style="left:3%; top:10%; width:16%; height:60%; background:#7c3aed;">
+            <div class="fb-name">stock 5</div><div class="fb-qty" id="fbq-Stock-PT">…</div>
+          </div>
+          <div class="floor-lane" style="left:19%; top:0%; width:10%; height:100%;">
+            <span class="lane-lbl">IN</span><span class="lane-arrow">↑</span>
+            <span class="lane-arrow">↓</span><span class="lane-lbl">OUT</span>
+          </div>
+          <div class="floor-block" data-zone="Stock-4" style="left:29%; top:10%; width:16%; height:60%; background:#1e3a8a;">
+            <div class="fb-name">stock 4</div><div class="fb-qty" id="fbq-Stock-4">…</div>
+          </div>
+          <div class="floor-block" data-zone="Stock-3" style="left:45%; top:10%; width:16%; height:60%; background:#16a34a;">
+            <div class="fb-name">stock 3</div><div class="fb-qty" id="fbq-Stock-3">…</div>
+          </div>
+          <div class="floor-block" data-zone="Stock-2" style="left:61%; top:10%; width:16%; height:60%; background:#f97316;">
+            <div class="fb-name">stock 2</div><div class="fb-qty" id="fbq-Stock-2">…</div>
+          </div>
+          <div class="floor-block" data-zone="Stock-1" style="left:77%; top:10%; width:16%; height:60%; background:#2563eb;">
+            <div class="fb-name">stock 1</div><div class="fb-qty" id="fbq-Stock-1">…</div>
+          </div>
+          <div class="floor-block ctx" style="left:0%; top:74%; width:18%; height:24%;"><div class="fb-name">Loading SL Area</div></div>
+          <div class="floor-block ctx" style="left:19%; top:74%; width:19%; height:24%;"><div class="fb-name">Fork Lift Charging Area</div></div>
+          <div class="floor-block ctx" style="left:40%; top:74%; width:53%; height:24%;"><div class="fb-name">สำนักงาน (Office)</div></div>
+        </div>
+        <div class="floor-legend">
+          <div class="floor-leg-item"><span class="floor-leg-dot" style="background:#7c3aed"></span>stock 5 (ผลิต)</div>
+          <div class="floor-leg-item"><span class="floor-leg-dot" style="background:#1e3a8a"></span>stock 4</div>
+          <div class="floor-leg-item"><span class="floor-leg-dot" style="background:#16a34a"></span>stock 3</div>
+          <div class="floor-leg-item"><span class="floor-leg-dot" style="background:#f97316"></span>stock 2</div>
+          <div class="floor-leg-item"><span class="floor-leg-dot" style="background:#2563eb"></span>stock 1</div>
+        </div>
+        <div class="hint" style="margin-top:8px;font-size:12px;color:var(--text3)">ช่องกลางคือทางวิ่งรถโฟล์คลิฟท์ (IN/OUT) — ผังนี้เป็นตำแหน่งอ้างอิง ไม่ใช่มาตราส่วนจริง</div>
+      </div>
+    </div>
+
+    <!-- ================= PAGE: RECEIVE ================= -->
+    <div class="page" id="page-receive">
+      <div class="form-card">
+        <div class="form-title">📥 รับเข้าจากใบส่งมอบ</div>
+
+        <div class="fg">
+          <label>ประเภท CL <span class="req">*</span></label>
+          <select id="recvSku" onchange="calcBags()">
+            <option value="">เลือกประเภท</option>
+            <option value="CL-2.5" data-w="1200">CL-2.5</option>
+            <option value="CL-3.2" data-w="1100">CL-3.2</option>
+            <option value="CL-3.2C" data-w="1000">CL-3.2C</option>
+          </select>
+        </div>
+
+        <div class="fg"><label>เลขที่ Lot เต็ม <span class="req">*</span></label><input id="recvLot" placeholder="2608/167"></div>
+
+        <div class="two-col">
+          <div class="fg">
+            <label>น้ำหนักตามใบส่งมอบ (ตัน)</label>
+            <input type="number" step="0.001" id="recvTon" placeholder="19.827" oninput="calcBags()">
+            <div class="hint">กรอกตามที่ผลิตเขียนในใบส่งมอบ</div>
+          </div>
+          <div class="fg">
+            <label>จำนวนถุง <span class="req">*</span></label>
+            <input type="number" id="recvBags" placeholder="17">
+            <div class="hint" id="bagsHint">ระบบคำนวณให้จากน้ำหนัก แก้ไขได้ถ้านับจริงไม่ตรง</div>
+          </div>
+        </div>
+
+        <div class="fg" id="moleGroup">
+          <label>ช่วง Mole (สี Tag)</label>
+          <select id="recvMole">
+            <option value="WHITE">CL-3.2 ช่วง 3.31–3.50 (WHITE)</option>
+            <option value="PINK">CL-3.2 ช่วง 3.21–3.30 (PINK)</option>
+            <option value="GREEN-L">CL-3.2 ช่วง 3.11–3.20 (GREEN-L)</option>
+            <option value="GREEN-D">CL-3.2 ช่วง 3.00–3.10 (GREEN-D)</option>
+            <option value="PURPLE">CL-2.5 ช่วง 2.61–2.99 (PURPLE)</option>
+            <option value="YELLOW">CL-2.5 ช่วง 2.41–2.60 (YELLOW)</option>
+            <option value="ORANGE">CL-2.5 ช่วง 2.21–2.40 (ORANGE)</option>
+            <option value="BLUE-L">CL-3.2C สำหรับขาย (BLUE-L — ใช้เตาแยกกลุ่มจริง)</option>
+          </select>
+          <div class="hint">สีนี้ใช้แปลงเป็นรหัสหยาบอัตโนมัติตอนย้ายเข้าคลัง เช่น "2608WHITE"</div>
+        </div>
+
+        <div class="fg"><label>เตา (Furnace)</label>
+          <select id="recvFurnace"><option value="F#1">F#1</option><option value="F#2">F#2</option><option value="F#3">F#3</option><option value="F#4">F#4</option></select>
+        </div>
+
+        <div class="fg">
+          <label>วางที่โซน <span class="req">*</span></label>
+          <select id="recvZone">
+            <option value="">เลือกโซน</option>
+            <option value="Stock-1">stock 1</option>
+            <option value="Stock-2">stock 2</option>
+            <option value="Stock-3">stock 3</option>
+            <option value="Stock-4">stock 4</option>
+            <option value="Stock-PT">stock 5 (PT)</option>
+          </select>
+        </div>
+
+        <div class="fg"><label>ผู้บันทึก</label><input id="recvUser" placeholder="ชื่อ / รหัส"></div>
+
+        <button class="btn btn-in" onclick="submitReceive()">✓ บันทึกรับเข้า</button>
+      </div>
+    </div>
+
+    <!-- ================= PAGE: TRANSFER OUT ================= -->
+    <div class="page" id="page-transfer">
+      <div class="sec-title">เลือก Lot ที่จะย้ายไปคลัง</div>
+      <div id="transferList"></div>
+      <div class="sticky-footer">
+        <div class="footer-summary"><span id="tfCount">เลือกแล้ว 0 lot</span><span id="tfTotal">รวม 0 ถุง</span></div>
+        <button class="btn btn-out" id="tfSubmitBtn" onclick="submitTransfer()">🚚 ส่งย้ายไปคลัง</button>
+      </div>
+    </div>
+
+    <!-- ================= PAGE: WAREHOUSE CONFIRM ================= -->
+    <div class="page" id="page-confirm">
+      <div class="sec-title">รอ MS คลัง ยืนยันรับเข้า</div>
+      <div id="pendingList"></div>
+    </div>
+
+    <!-- ================= PAGE: HISTORY ================= -->
+    <div class="page" id="page-history">
+      <div class="sec-title">ประวัติทั้งหมด</div>
+      <div id="historyList"></div>
+    </div>
+
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn active" data-page="home" data-title="สต๊อกโรงงาน — ภาพรวม">
+      <div class="nav-ic">🏭</div>หน้าแรก
+    </button>
+    <button class="nav-btn" data-page="layout" data-title="ผังพื้นที่ MS">
+      <div class="nav-ic">🗺️</div>ผัง
+    </button>
+    <button class="nav-btn" data-page="receive" data-title="รับเข้าจากผลิต" data-pin="1">
+      <div class="nav-ic">📥</div>รับเข้า
+    </button>
+    <button class="nav-btn" data-page="transfer" data-title="ย้ายออกไปคลัง" data-pin="1">
+      <div class="nav-ic">🚚</div>ย้ายออก
+    </button>
+    <button class="nav-btn" data-page="confirm" data-title="MS คลัง — ยืนยันรับเข้า" data-pin="1">
+      <div class="nav-ic">📋</div>รอรับเข้า
+    </button>
+    <button class="nav-btn" data-page="history" data-title="ประวัติทั้งหมด">
+      <div class="nav-ic">🕘</div>ประวัติ
+    </button>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="sheet" id="zoneSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-body">
+    <div class="sheet-zone-name" id="sheetZoneName">—</div>
+    <div class="sheet-meta" id="sheetZoneMeta">—</div>
+    <div id="sheetSkuList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- PIN OVERLAY (เหมือน warehouse_v32.html) -->
+<div id="pinOverlay">
+  <div class="pin-box">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px">ใส่รหัสผ่าน</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:6px">สำหรับหน้ารับเข้า / ย้ายออก / ยืนยันรับเข้าเท่านั้น</div>
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="10" placeholder="รหัสผ่าน">
+    <div id="pinErr" style="color:#dc2626;font-size:13px;height:18px;margin-bottom:8px"></div>
+    <button class="btn btn-in" onclick="submitPin()">เข้าใช้งาน</button>
+    <button class="btn" style="background:var(--bg3);color:var(--text2);margin-top:8px" onclick="closePinOverlay()">ยกเลิก</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// ⚠️ ตั้งค่าก่อนใช้งานจริง:
+// 1) ใส่ WMS_SECRET_KEY ตัวเดียวกับที่ตั้งใน Cloudflare Worker (ตัวเดียวกับ warehouse_v32.html)
+// 2) ตรวจว่า WORKER_URL ตรงกับ wms-proxy ของจริง
+// 3) เปลี่ยน TX_PIN เป็นรหัสที่ต้องการ (แยกจาก WMS เดิมได้ ถ้าต้องการ)
+// ══════════════════════════════════════════════════════════════════
+const WMS_KEY = 'esl-wms-2569';
+const WORKER_URL = 'https://wms-proxy.esl-ptit.workers.dev';
+const TX_PIN = '007700';
+
+const ZONE_LABEL = {'Stock-1':'stock 1','Stock-2':'stock 2','Stock-3':'stock 3','Stock-4':'stock 4','Stock-PT':'stock 5 (PT)'};
+const SKU_CHIP = {'CL-2.5':'chip-25','CL-3.2':'chip-32','CL-3.2C':'chip-32c'};
+const MOLE_COLOR = {'ORANGE':'#f97316','PINK':'#f9a8d4','GREEN-L':'#86efac','GREEN-D':'#166534','PURPLE':'#a78bfa','WHITE':'#ffffff','YELLOW':'#fde047','BLUE-L':'#7dd3fc'};
+
+let pinUnlocked = false;
+let pendingNavBtn = null;
+let factoryStock = [];      // cache จาก getFactoryStock
+let transferSelection = {}; // key(zone|sku|lot) -> {qty, max, row}
+
+function toast(msg, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (ok ? 'ok' : 'err');
+  setTimeout(function(){ t.className = 'toast'; }, 3200);
+}
+
+async function apiGet(action, params) {
+  const qs = new URLSearchParams(Object.assign({action:action}, params||{}));
+  const res = await fetch(WORKER_URL + '?' + qs.toString(), { headers: { 'X-WMS-Key': WMS_KEY } });
+  return res.json();
+}
+async function apiPost(body) {
+  const res = await fetch(WORKER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ key: WMS_KEY }, body))
+  });
+  return res.json();
+}
+
+// ── Nav ──
+document.querySelectorAll('.nav-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    if (btn.dataset.pin === '1' && !pinUnlocked) {
+      pendingNavBtn = btn;
+      document.getElementById('pinOverlay').style.display = 'flex';
+      document.getElementById('pinInput').value = '';
+      document.getElementById('pinErr').textContent = '';
+      setTimeout(function(){ document.getElementById('pinInput').focus(); }, 100);
+      return;
+    }
+    goToPage(btn);
+  });
+});
+function goToPage(btn){
+  document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('page-' + btn.dataset.page).classList.add('active');
+  document.getElementById('pageTitle').textContent = btn.dataset.title;
+  if (btn.dataset.page === 'transfer') renderTransferList();
+  if (btn.dataset.page === 'confirm') loadPending();
+  if (btn.dataset.page === 'history') loadHistory();
+}
+function submitPin(){
+  const val = document.getElementById('pinInput').value;
+  if (val === TX_PIN) {
+    pinUnlocked = true;
+    document.getElementById('pinOverlay').style.display = 'none';
+    goToPage(pendingNavBtn);
+  } else {
+    document.getElementById('pinErr').textContent = 'รหัสผ่านไม่ถูกต้อง';
+  }
+}
+function closePinOverlay(){ document.getElementById('pinOverlay').style.display = 'none'; }
+
+// ── Load factory stock, render dashboard + layout qty + transfer list source ──
+async function loadFactoryStock(){
+  document.getElementById('pageSub').textContent = 'กำลังโหลด…';
+  try {
+    const r = await apiGet('getFactoryStock');
+    if (!r.success) throw new Error(r.error || 'load failed');
+    factoryStock = r.data || [];
+    renderHome();
+    renderLayoutQty();
+    document.getElementById('pageSub').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleString('th-TH');
+  } catch(err) {
+    toast('โหลดสต๊อกโรงงานไม่สำเร็จ: ' + err.message, false);
+    document.getElementById('pageSub').textContent = 'โหลดข้อมูลไม่สำเร็จ';
+  }
+}
+
+function renderHome(){
+  const totals = {};
+  factoryStock.forEach(function(r){ totals[r.sku] = (totals[r.sku]||0) + r.qty; });
+  const statsEl = document.getElementById('homeStats');
+  statsEl.innerHTML = ['CL-2.5','CL-3.2','CL-3.2C'].map(function(sku){
+    return '<div class="stat-card"><div class="stat-label">'+sku+'</div>'+
+      '<div class="stat-val">'+Math.round(totals[sku]||0)+'</div><div class="stat-unit">ถุง</div></div>';
+  }).join('');
+
+  const zonesEl = document.getElementById('homeZones');
+  const zoneOrder = ['Stock-1','Stock-2','Stock-3','Stock-4','Stock-PT'];
+  zonesEl.innerHTML = zoneOrder.map(function(z){
+    const items = factoryStock.filter(function(r){ return r.zone === z; });
+    const tagClass = z === 'Stock-PT' ? 'pt' : 'ms';
+    const tagLabel = z === 'Stock-PT' ? 'PT (ผลิต)' : 'MS';
+    const bySku = {};
+    items.forEach(function(i){ bySku[i.sku] = (bySku[i.sku]||0) + i.qty; });
+    const rows = Object.keys(bySku).length
+      ? Object.keys(bySku).map(function(sku){
+          return '<div class="zone-sku-row"><span class="sku-chip '+(SKU_CHIP[sku]||'')+'">'+sku+'</span><span class="zone-sku-qty">'+Math.round(bySku[sku])+' ถุง</span></div>';
+        }).join('')
+      : '<div class="zone-empty">— ว่าง —</div>';
+    return '<div class="zone-card"><div class="zone-head"><div class="zone-name">'+ZONE_LABEL[z]+'</div>'+
+      '<div class="zone-tag '+tagClass+'">'+tagLabel+'</div></div>'+rows+'</div>';
+  }).join('');
+}
+
+function renderLayoutQty(){
+  ['Stock-1','Stock-2','Stock-3','Stock-4','Stock-PT'].forEach(function(z){
+    const items = factoryStock.filter(function(r){ return r.zone === z; });
+    const total = items.reduce(function(s,i){ return s + i.qty; }, 0);
+    const el = document.getElementById('fbq-' + z);
+    if (el) el.textContent = total > 0 ? Math.round(total) + ' ถุง' : 'ว่าง';
+  });
+}
+
+// ── Layout tap → bottom sheet ──
+document.querySelectorAll('.floor-block[data-zone]').forEach(function(el){
+  el.addEventListener('click', function(){ openZoneSheet(el.dataset.zone); });
+});
+function openZoneSheet(zone){
+  const items = factoryStock.filter(function(r){ return r.zone === zone; });
+  document.getElementById('sheetZoneName').textContent = ZONE_LABEL[zone] || zone;
+  const total = items.reduce(function(s,i){ return s+i.qty; }, 0);
+  document.getElementById('sheetZoneMeta').textContent = 'รวม ' + Math.round(total) + ' ถุง · ' + items.length + ' lot';
+  const list = document.getElementById('sheetSkuList');
+  list.innerHTML = items.length ? items.map(function(i){
+    return '<div class="sku-row"><div><div class="sku-code">'+i.sku+'</div>'+
+      '<div class="sku-lot">Lot '+i.lot+(i.moleType?' · '+i.moleType:'')+'</div></div>'+
+      '<div><div class="sku-qty">'+Math.round(i.qty)+'</div><div class="sku-qty-label">ถุง</div></div></div>';
+  }).join('') : '<div class="empty-state" style="padding:20px;"><div class="big">📭</div>ยังไม่มีของวางในโซนนี้</div>';
+  document.getElementById('sheetOverlay').classList.add('show');
+  document.getElementById('zoneSheet').classList.add('show');
+}
+document.getElementById('sheetOverlay').addEventListener('click', function(){
+  document.getElementById('sheetOverlay').classList.remove('show');
+  document.getElementById('zoneSheet').classList.remove('show');
+});
+
+// ── Receive form ──
+function calcBags(){
+  const sel = document.getElementById('recvSku');
+  const stdWeight = parseFloat(sel.selectedOptions[0] ? sel.selectedOptions[0].dataset.w : '');
+  const ton = parseFloat(document.getElementById('recvTon').value);
+  const bagsField = document.getElementById('recvBags');
+  const hint = document.getElementById('bagsHint');
+  if (stdWeight && ton) {
+    const suggested = Math.round((ton*1000)/stdWeight);
+    hint.textContent = '≈ ' + suggested + ' ถุง (' + ton + ' ตัน ÷ ' + stdWeight.toLocaleString() + ' กก./ถุง) — แก้ไขได้ถ้านับจริงไม่ตรง';
+    if (!bagsField.value) bagsField.value = suggested;
+  } else {
+    hint.textContent = 'ระบบคำนวณให้จากน้ำหนัก แก้ไขได้ถ้านับจริงไม่ตรง';
+  }
+}
+async function submitReceive(){
+  const sku = document.getElementById('recvSku').value;
+  const lot = document.getElementById('recvLot').value.trim();
+  const qty = parseFloat(document.getElementById('recvBags').value);
+  const zone = document.getElementById('recvZone').value;
+  if (!sku || !lot || !qty || !zone) { toast('กรอกข้อมูลที่จำเป็น (*) ให้ครบก่อน', false); return; }
+
+  const btn = event.target; btn.disabled = true;
+  try {
+    const r = await apiPost({
+      action: 'saveFactory', type: 'in',
+      sku: sku, lot: lot, qty: qty,
+      moleType: document.getElementById('recvMole').value,
+      furnace: document.getElementById('recvFurnace').value,
+      zone: zone, source: 'PT',
+      user: document.getElementById('recvUser').value,
+      docNo: '', note: ''
+    });
+    if (r.success) {
+      toast('บันทึกรับเข้า ' + lot + ' (' + qty + ' ถุง) แล้ว', true);
+      document.getElementById('recvLot').value = '';
+      document.getElementById('recvTon').value = '';
+      document.getElementById('recvBags').value = '';
+      loadFactoryStock();
+    } else {
+      toast('บันทึกไม่สำเร็จ: ' + (r.error||''), false);
+    }
+  } catch(err) {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + err.message, false);
+  } finally { btn.disabled = false; }
+}
+
+// ── Transfer out ──
+function renderTransferList(){
+  transferSelection = {};
+  const el = document.getElementById('transferList');
+  if (!factoryStock.length) { el.innerHTML = '<div class="empty-state"><div class="big">📭</div>ยังไม่มีสต๊อกในโรงงาน</div>'; updateTransferFooter(); return; }
+  el.innerHTML = factoryStock.map(function(r, idx){
+    const key = r.zone+'|'+r.sku+'|'+r.lot;
+    const molePill = (r.sku !== 'CL-3.2C' && r.moleType) ?
+      '<span class="mole-pill"><span class="dot" style="background:'+(MOLE_COLOR[r.moleType]||'#ccc')+'"></span>'+r.moleType+'</span>' : '';
+    return '<div class="lot-card" data-key="'+key+'" data-max="'+r.qty+'" onclick="toggleLot(this)">'+
+      '<div class="checkbox"></div>'+
+      '<div class="lot-info">'+
+        '<div class="lot-top"><span class="sku-chip '+(SKU_CHIP[r.sku]||'')+'">'+r.sku+'</span>'+
+          '<span class="lot-code">'+r.lot+'</span>'+molePill+'</div>'+
+        '<div class="lot-meta">'+ZONE_LABEL[r.zone]+(r.furnace?' · เตา '+r.furnace:'')+'</div>'+
+        '<div class="qty-stepper">'+
+          '<button class="step-btn" onclick="event.stopPropagation();stepQty(this,-1)">−</button>'+
+          '<div class="step-val">'+Math.round(r.qty)+'</div>'+
+          '<button class="step-btn" onclick="event.stopPropagation();stepQty(this,1)">+</button>'+
+          '<span class="step-max">จาก '+Math.round(r.qty)+' ถุง</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="lot-qty"><div class="lot-qty-num">'+Math.round(r.qty)+'</div><div class="lot-qty-lbl">ถุง</div></div>'+
+    '</div>';
+  }).join('');
+}
+function toggleLot(card){
+  card.classList.toggle('sel');
+  const box = card.querySelector('.checkbox');
+  const key = card.dataset.key;
+  const max = parseFloat(card.dataset.max);
+  if (card.classList.contains('sel')) {
+    box.textContent = '✓';
+    transferSelection[key] = { qty: max, max: max };
+    card.querySelector('.step-val').textContent = Math.round(max);
+  } else {
+    box.textContent = '';
+    delete transferSelection[key];
+  }
+  updateTransferFooter();
+}
+function stepQty(btn, delta){
+  const card = btn.closest('.lot-card');
+  const key = card.dataset.key;
+  if (!transferSelection[key]) return;
+  const max = transferSelection[key].max;
+  let q = transferSelection[key].qty + delta;
+  q = Math.max(1, Math.min(max, q));
+  transferSelection[key].qty = q;
+  card.querySelector('.step-val').textContent = q;
+  card.querySelector('.lot-qty-num').textContent = q;
+  updateTransferFooter();
+}
+function updateTransferFooter(){
+  const keys = Object.keys(transferSelection);
+  const total = keys.reduce(function(s,k){ return s + transferSelection[k].qty; }, 0);
+  document.getElementById('tfCount').textContent = 'เลือกแล้ว ' + keys.length + ' lot';
+  document.getElementById('tfTotal').textContent = 'รวม ' + Math.round(total) + ' ถุง';
+}
+async function submitTransfer(){
+  const keys = Object.keys(transferSelection);
+  if (!keys.length) { toast('เลือกอย่างน้อย 1 lot ก่อน', false); return; }
+  const btn = document.getElementById('tfSubmitBtn'); btn.disabled = true;
+  try {
+    let okCount = 0;
+    for (const key of keys) {
+      const parts = key.split('|'); // zone|sku|lot
+      const zone = parts[0], sku = parts[1], lot = parts.slice(2).join('|');
+      const src = factoryStock.find(function(r){ return r.zone===zone && r.sku===sku && r.lot===lot; });
+      const r = await apiPost({
+        action: 'saveFactory', type: 'out',
+        sku: sku, lot: lot, qty: transferSelection[key].qty,
+        moleType: src ? src.moleType : '', furnace: src ? src.furnace : '',
+        zone: zone, source: 'MS', user: '', note: ''
+      });
+      if (r.success) okCount++;
+    }
+    toast('ส่งย้าย ' + okCount + '/' + keys.length + ' lot ไปรอคลังรับเข้าแล้ว', okCount === keys.length);
+    loadFactoryStock();
+    renderTransferList();
+  } catch(err) {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + err.message, false);
+  } finally { btn.disabled = false; }
+}
+
+// ── Warehouse confirm (pending groups) ──
+async function loadPending(){
+  const el = document.getElementById('pendingList');
+  el.innerHTML = '<div class="empty-state">กำลังโหลด…</div>';
+  try {
+    const r = await apiGet('getFactoryPending');
+    if (!r.success) throw new Error(r.error||'load failed');
+    const groups = r.data || [];
+    if (!groups.length) { el.innerHTML = '<div class="empty-state"><div class="big">✅</div>ไม่มีรายการค้างรอรับเข้า</div>'; return; }
+    el.innerHTML = groups.map(function(g, idx){
+      const chips = g.rows.map(function(x){ return '<span class="bundle-lot-chip">/'+x.lot.split('/').pop().slice(-3)+'='+Math.round(x.qty)+'</span>'; }).join('');
+      const label = g.sku === 'CL-3.2C' ? ('เตา '+g.furnace+' · '+g.coarseLot.split('-')[1]) : (g.moleType+' · '+g.coarseLot.slice(0,4));
+      const rowIds = g.rows.map(function(x){ return x.id; }).join(',');
+      return '<div class="pend-card" data-rowids="'+rowIds+'" data-sku="'+g.sku+'" data-coarse="'+g.coarseLot+'" data-remark="'+g.remarkPreview+'" data-qty="'+g.totalQty+'">'+
+        '<div class="pend-head"><div><div class="lot-top"><span class="sku-chip '+(SKU_CHIP[g.sku]||'')+'">'+g.sku+'</span>'+
+          '<span style="font-family:var(--mono);font-weight:700;font-size:14px;">'+label+'</span></div>'+
+          '<div class="hist-sub">รวม '+g.rows.length+' lot จากโรงงาน</div></div>'+
+          '<div class="pend-status">รอรับเข้า</div></div>'+
+        '<div class="bundle-lots">'+chips+'</div>'+
+        '<div class="hist-sub" style="margin-bottom:2px;">รวมทั้งกลุ่ม <b>'+Math.round(g.totalQty)+' ถุง</b></div>'+
+        '<div class="split-row">'+
+          '<select class="pend-wh"><option value="78">คลัง 7-8</option><option value="910">คลัง 9-10</option></select>'+
+          '<input class="pend-zone" placeholder="Zone เช่น P, K, F">'+
+        '</div>'+
+        '<div class="auto-preview">'+
+          '<div class="auto-preview-lbl">⚙️ ระบบจะบันทึกลง Inventory_Transactions อัตโนมัติ (1 บรรทัด)</div>'+
+          '<div class="auto-preview-code">Lot_Number: '+g.coarseLot+' · Quantity: '+Math.round(g.totalQty)+'</div>'+
+          '<div class="auto-preview-remark">Remark: '+g.remarkPreview+'</div>'+
+        '</div>'+
+        '<button class="btn btn-in" style="margin-top:12px;" onclick="confirmGroup(this)">✓ ยืนยันรับเข้าคลัง (ทั้งกลุ่ม)</button>'+
+      '</div>';
+    }).join('');
+  } catch(err) {
+    el.innerHTML = '<div class="empty-state">โหลดไม่สำเร็จ: ' + err.message + '</div>';
+  }
+}
+async function confirmGroup(btn){
+  const card = btn.closest('.pend-card');
+  const wh = card.querySelector('.pend-wh').value;
+  const zone = card.querySelector('.pend-zone').value.trim();
+  if (!zone) { toast('กรอกโซนปลายทางในคลังก่อน', false); return; }
+  btn.disabled = true;
+  try {
+    const r = await apiPost({
+      action: 'confirmFactoryReceive',
+      rowIds: card.dataset.rowids, wh: wh, zone: zone, user: ''
+    });
+    if (r.success) {
+      toast('รับเข้าคลังแล้ว ' + r.qty + ' ถุง (' + r.coarseLot + ')', true);
+      loadPending();
+      loadFactoryStock();
+    } else {
+      toast('ยืนยันไม่สำเร็จ: ' + (r.error||''), false);
+      btn.disabled = false;
+    }
+  } catch(err) {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + err.message, false);
+    btn.disabled = false;
+  }
+}
+
+// ── History ──
+async function loadHistory(){
+  const el = document.getElementById('historyList');
+  el.innerHTML = '<div class="empty-state">กำลังโหลด…</div>';
+  try {
+    const r = await apiGet('getFactoryLogs');
+    if (!r.success) throw new Error(r.error||'load failed');
+    const logs = (r.data||[]).slice().reverse();
+    if (!logs.length) { el.innerHTML = '<div class="empty-state"><div class="big">📭</div>ยังไม่มีประวัติ</div>'; return; }
+    el.innerHTML = logs.map(function(row){
+      const type = row.Activity_Type || '';
+      const cls = type.includes('รับเข้า') ? 'hist-in' : 'hist-out';
+      return '<div class="hist-row"><div class="hist-left">'+
+        '<span class="hist-type '+cls+'">'+type+'</span>'+
+        '<div class="hist-lot">'+(row.Product_Code||'')+' · '+(row.Lot_Number||'')+'</div>'+
+        '<div class="hist-sub">'+(row.Zone||'')+(row.Remark?' · '+row.Remark:'')+'</div>'+
+        '</div><div class="hist-right"><div class="hist-qty">'+Math.round(row.Quantity||0)+' ถุง</div></div></div>';
+    }).join('');
+  } catch(err) {
+    el.innerHTML = '<div class="empty-state">โหลดไม่สำเร็จ: ' + err.message + '</div>';
+  }
+}
+
+// ── Init ──
+loadFactoryStock();
+</script>
+</body>
+</html>
