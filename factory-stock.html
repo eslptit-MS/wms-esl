@@ -699,20 +699,22 @@ async function submitTransfer(){
   const btn = document.getElementById('tfSubmitBtn'); btn.disabled = true;
   const tripId = makeTripId(); // ทุก lot ที่ส่งพร้อมกันในครั้งนี้ = 1 เที่ยวเดียวกัน
   try {
-    let okCount = 0;
-    for (const key of keys) {
+    const items = keys.map(function(key){
       const parts = key.split('|'); // zone|sku|lot
       const zone = parts[0], sku = parts[1], lot = parts.slice(2).join('|');
       const src = factoryStock.find(function(r){ return r.zone===zone && r.sku===sku && r.lot===lot; });
-      const r = await apiPost({
-        action: 'saveFactory', type: 'out',
-        sku: sku, lot: lot, qty: transferSelection[key].qty,
+      return {
+        type: 'out', sku: sku, lot: lot, qty: transferSelection[key].qty,
         moleType: src ? src.moleType : '', furnace: src ? src.furnace : '',
-        zone: zone, source: 'MS', user: '', note: '', docNo: tripId
-      });
-      if (r.success) okCount++;
+        zone: zone, source: 'MS', note: ''
+      };
+    });
+    const r = await apiPost({ action: 'saveFactoryBatch', items: items, docNo: tripId, user: '' });
+    if (r.success) {
+      toast('ส่งย้ายเที่ยว ' + tripId + ' (' + r.count + ' lot) ไปรอคลังรับเข้าแล้ว', true);
+    } else {
+      toast('ส่งย้ายไม่สำเร็จ: ' + (r.error||''), false);
     }
-    toast('ส่งย้ายเที่ยว ' + tripId + ' (' + okCount + '/' + keys.length + ' lot) ไปรอคลังรับเข้าแล้ว', okCount === keys.length);
     loadFactoryStock();
     renderTransferList();
   } catch(err) {
