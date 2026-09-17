@@ -117,6 +117,7 @@ body { display: flex; justify-content: center; }
 .auto-preview-lbl { font-size: 10.5px; font-weight: 700; color: var(--amber-t); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
 .auto-preview-code { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); }
 .auto-preview-remark { font-family: var(--mono); font-size: 12.5px; color: var(--text2); margin-top: 3px; }
+.add-split { font-size: 12.5px; color: var(--accent); font-weight: 700; margin-top: 8px; display: inline-block; cursor: pointer; }
 
 .hist-row { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 7px; display: flex; justify-content: space-between; align-items: center; }
 .hist-left { display: flex; flex-direction: column; gap: 2px; }
@@ -182,6 +183,13 @@ body { display: flex; justify-content: center; }
 #pinOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300; align-items: center; justify-content: center; }
 #pinOverlay .pin-box { background: var(--bg2); border-radius: var(--radius); padding: 22px; width: calc(100% - 60px); max-width: 300px; text-align: center; }
 #pinInput { width: 100%; text-align: center; letter-spacing: 6px; font-size: 22px; font-family: var(--mono); padding: 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border2); background: var(--bg3); margin: 10px 0 6px; }
+
+/* พิมพ์เอกสารขาย — ซ่อนทุกอย่างยกเว้นตารางเอกสาร */
+@media print {
+  .nav, .header, .sticky-footer, #saleSelectView, .no-print { display: none !important; }
+  #saleDocPrintArea { border: none !important; box-shadow: none !important; padding: 0 !important; }
+  .app { max-width: 100% !important; }
+}
 </style>
 </head>
 <body>
@@ -271,6 +279,12 @@ body { display: flex; justify-content: center; }
           </div>
         </div>
 
+        <div class="fg" id="weightGroup" style="display:none">
+          <label>น้ำหนักจริงทั้ง Batch (kg)</label>
+          <input type="number" id="recvWeightKg" placeholder="เช่น 16560">
+          <div class="hint">กรอกเฉพาะ CL-3.2C เท่านั้น (ใช้คำนวณตอนออกเอกสารขอใบเซอร์ QC ภายหลัง) — ถ้ายังไม่รู้น้ำหนักจริง เว้นว่างไว้ก่อนได้</div>
+        </div>
+
         <div class="fg" id="moleGroup">
           <label>ช่วง Mole (สี Tag)</label>
           <select id="recvMole">
@@ -324,6 +338,38 @@ body { display: flex; justify-content: center; }
       <div id="pendingList"></div>
     </div>
 
+    <!-- ================= PAGE: SALE DOCUMENT (CL-3.2C only) ================= -->
+    <div class="page" id="page-sale">
+      <div id="saleSelectView">
+        <div class="sec-title">เลือก Batch ที่จะขาย (เรียง FIFO)</div>
+        <div id="saleBatchList"></div>
+        <div class="sticky-footer">
+          <div class="footer-summary"><span id="saleCount">เลือกแล้ว 0 batch</span><span id="saleTotal">รวม 0 ถุง</span></div>
+          <button class="btn btn-out" onclick="submitSaleDocument()">📄 สร้างเอกสารขอใบเซอร์</button>
+        </div>
+      </div>
+      <div id="saleDocView" style="display:none">
+        <div class="form-card" id="saleDocPrintArea">
+          <div style="font-size:15px;font-weight:700;margin-bottom:2px" id="saleDocDate"></div>
+          <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:13.5px">
+            <thead><tr style="background:var(--bg3)">
+              <th style="border:1px solid var(--border);padding:6px">Lot No.</th>
+              <th style="border:1px solid var(--border);padding:6px">Batch</th>
+              <th style="border:1px solid var(--border);padding:6px">จำนวน (ถุง)</th>
+              <th style="border:1px solid var(--border);padding:6px">หน่วย</th>
+              <th style="border:1px solid var(--border);padding:6px">น้ำหนัก Kg.</th>
+            </tr></thead>
+            <tbody id="saleDocRows"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:12px;" class="no-print">
+          <button class="btn" style="background:var(--bg3);color:var(--text2)" onclick="window.print()">🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+        </div>
+        <button class="btn btn-in no-print" style="margin-top:10px" onclick="confirmShipCurrentDoc()">✓ ยืนยันส่งของออกจริงแล้ว (ตัดสต๊อก)</button>
+        <button class="btn no-print" style="background:var(--bg3);color:var(--text2);margin-top:8px" onclick="backToSaleSelect()">‹ กลับไปเลือก Batch ใหม่</button>
+      </div>
+    </div>
+
     <!-- ================= PAGE: HISTORY ================= -->
     <div class="page" id="page-history">
       <div class="sec-title">ประวัติทั้งหมด</div>
@@ -347,6 +393,9 @@ body { display: flex; justify-content: center; }
     </button>
     <button class="nav-btn" data-page="confirm" data-title="MS คลัง — ยืนยันรับเข้า" data-pin="1">
       <div class="nav-ic">📋</div>รอรับเข้า
+    </button>
+    <button class="nav-btn" data-page="sale" data-title="ขาย — ขอใบเซอร์ QC" data-pin="1">
+      <div class="nav-ic">📄</div>ขาย
     </button>
     <button class="nav-btn" data-page="history" data-title="ประวัติทั้งหมด">
       <div class="nav-ic">🕘</div>ประวัติ
@@ -380,10 +429,7 @@ body { display: flex; justify-content: center; }
 
 <script>
 // ══════════════════════════════════════════════════════════════════
-// ⚠️ ตั้งค่าก่อนใช้งานจริง:
-// 1) ใส่ WMS_SECRET_KEY ตัวเดียวกับที่ตั้งใน Cloudflare Worker (ตัวเดียวกับ warehouse_v32.html)
-// 2) ตรวจว่า WORKER_URL ตรงกับ wms-proxy ของจริง
-// 3) เปลี่ยน TX_PIN เป็นรหัสที่ต้องการ (แยกจาก WMS เดิมได้ ถ้าต้องการ)
+// ⚠️ ตั้งค่าก่อนใช้งานจริง — ค่าปัจจุบันตรงกับที่ deploy ไว้อยู่แล้ว
 // ══════════════════════════════════════════════════════════════════
 const WMS_KEY = 'esl-wms-2569';
 const WORKER_URL = 'https://wms-proxy.esl-ptit.workers.dev';
@@ -442,6 +488,7 @@ function goToPage(btn){
   if (btn.dataset.page === 'transfer') renderTransferList();
   if (btn.dataset.page === 'confirm') loadPending();
   if (btn.dataset.page === 'history') loadHistory();
+  if (btn.dataset.page === 'sale') loadSaleBatches();
 }
 function submitPin(){
   const val = document.getElementById('pinInput').value;
@@ -537,6 +584,7 @@ function calcBags(){
   const ton = parseFloat(document.getElementById('recvTon').value);
   const bagsField = document.getElementById('recvBags');
   const hint = document.getElementById('bagsHint');
+  document.getElementById('weightGroup').style.display = (sel.value === 'CL-3.2C') ? 'block' : 'none';
   if (stdWeight && ton) {
     const suggested = Math.round((ton*1000)/stdWeight);
     hint.textContent = '≈ ' + suggested + ' ถุง (' + ton + ' ตัน ÷ ' + stdWeight.toLocaleString() + ' กก./ถุง) — แก้ไขได้ถ้านับจริงไม่ตรง';
@@ -561,13 +609,15 @@ async function submitReceive(){
       furnace: document.getElementById('recvFurnace').value,
       zone: zone, source: 'PT',
       user: document.getElementById('recvUser').value,
-      docNo: '', note: ''
+      docNo: '', note: '',
+      weightKg: document.getElementById('recvWeightKg').value || ''
     });
     if (r.success) {
       toast('บันทึกรับเข้า ' + lot + ' (' + qty + ' ถุง) แล้ว', true);
       document.getElementById('recvLot').value = '';
       document.getElementById('recvTon').value = '';
       document.getElementById('recvBags').value = '';
+      document.getElementById('recvWeightKg').value = '';
       loadFactoryStock();
     } else {
       toast('บันทึกไม่สำเร็จ: ' + (r.error||''), false);
@@ -636,10 +686,18 @@ function updateTransferFooter(){
   document.getElementById('tfCount').textContent = 'เลือกแล้ว ' + keys.length + ' lot';
   document.getElementById('tfTotal').textContent = 'รวม ' + Math.round(total) + ' ถุง';
 }
+function makeTripId(){
+  const d = new Date();
+  const pad = function(n){ return String(n).padStart(2,'0'); };
+  const ymd = d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate());
+  const hms = pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+  return 'TRIP-' + ymd + '-' + hms;
+}
 async function submitTransfer(){
   const keys = Object.keys(transferSelection);
   if (!keys.length) { toast('เลือกอย่างน้อย 1 lot ก่อน', false); return; }
   const btn = document.getElementById('tfSubmitBtn'); btn.disabled = true;
+  const tripId = makeTripId(); // ทุก lot ที่ส่งพร้อมกันในครั้งนี้ = 1 เที่ยวเดียวกัน
   try {
     let okCount = 0;
     for (const key of keys) {
@@ -650,11 +708,11 @@ async function submitTransfer(){
         action: 'saveFactory', type: 'out',
         sku: sku, lot: lot, qty: transferSelection[key].qty,
         moleType: src ? src.moleType : '', furnace: src ? src.furnace : '',
-        zone: zone, source: 'MS', user: '', note: ''
+        zone: zone, source: 'MS', user: '', note: '', docNo: tripId
       });
       if (r.success) okCount++;
     }
-    toast('ส่งย้าย ' + okCount + '/' + keys.length + ' lot ไปรอคลังรับเข้าแล้ว', okCount === keys.length);
+    toast('ส่งย้ายเที่ยว ' + tripId + ' (' + okCount + '/' + keys.length + ' lot) ไปรอคลังรับเข้าแล้ว', okCount === keys.length);
     loadFactoryStock();
     renderTransferList();
   } catch(err) {
@@ -662,55 +720,88 @@ async function submitTransfer(){
   } finally { btn.disabled = false; }
 }
 
-// ── Warehouse confirm (pending groups) ──
+// ── Warehouse confirm — จัดกลุ่มตามเที่ยว (Trip) ไม่ใช่รหัสหยาบ ──────
 async function loadPending(){
   const el = document.getElementById('pendingList');
   el.innerHTML = '<div class="empty-state">กำลังโหลด…</div>';
+  loadTripCounters();
   try {
     const r = await apiGet('getFactoryPending');
     if (!r.success) throw new Error(r.error||'load failed');
-    const groups = r.data || [];
-    if (!groups.length) { el.innerHTML = '<div class="empty-state"><div class="big">✅</div>ไม่มีรายการค้างรอรับเข้า</div>'; return; }
-    el.innerHTML = groups.map(function(g, idx){
-      const chips = g.rows.map(function(x){ return '<span class="bundle-lot-chip">/'+x.lot.split('/').pop().slice(-3)+'='+Math.round(x.qty)+'</span>'; }).join('');
-      const label = g.sku === 'CL-3.2C' ? ('เตา '+g.furnace+' · '+g.coarseLot.split('-')[1]) : (g.moleType+' · '+g.coarseLot.slice(0,4));
-      const rowIds = g.rows.map(function(x){ return x.id; }).join(',');
-      return '<div class="pend-card" data-rowids="'+rowIds+'" data-sku="'+g.sku+'" data-coarse="'+g.coarseLot+'" data-remark="'+g.remarkPreview+'" data-qty="'+g.totalQty+'">'+
-        '<div class="pend-head"><div><div class="lot-top"><span class="sku-chip '+(SKU_CHIP[g.sku]||'')+'">'+g.sku+'</span>'+
-          '<span style="font-family:var(--mono);font-weight:700;font-size:14px;">'+label+'</span></div>'+
-          '<div class="hist-sub">รวม '+g.rows.length+' lot จากโรงงาน</div></div>'+
-          '<div class="pend-status">รอรับเข้า</div></div>'+
-        '<div class="bundle-lots">'+chips+'</div>'+
-        '<div class="hist-sub" style="margin-bottom:2px;">รวมทั้งกลุ่ม <b>'+Math.round(g.totalQty)+' ถุง</b></div>'+
-        '<div class="split-row">'+
-          '<select class="pend-wh"><option value="78">คลัง 7-8</option><option value="910">คลัง 9-10</option></select>'+
-          '<input class="pend-zone" placeholder="Zone เช่น P, K, F">'+
-        '</div>'+
-        '<div class="auto-preview">'+
-          '<div class="auto-preview-lbl">⚙️ ระบบจะบันทึกลง Inventory_Transactions อัตโนมัติ (1 บรรทัด)</div>'+
-          '<div class="auto-preview-code">Lot_Number: '+g.coarseLot+' · Quantity: '+Math.round(g.totalQty)+'</div>'+
-          '<div class="auto-preview-remark">Remark: '+g.remarkPreview+'</div>'+
-        '</div>'+
-        '<button class="btn btn-in" style="margin-top:12px;" onclick="confirmGroup(this)">✓ ยืนยันรับเข้าคลัง (ทั้งกลุ่ม)</button>'+
+    const trips = r.data || [];
+    if (!trips.length) { el.innerHTML = '<div class="empty-state"><div class="big">✅</div>ไม่มีรายการค้างรอรับเข้า</div>'; return; }
+    el.innerHTML = trips.map(function(t){
+      const lotsHtml = t.rows.map(function(row){
+        const molePill = (row.sku !== 'CL-3.2C' && row.moleType) ?
+          '<span class="mole-pill"><span class="dot" style="background:'+(MOLE_COLOR[row.moleType]||'#ccc')+'"></span>'+row.moleType+'</span>' : '';
+        return '<div class="trip-lot-row" data-rowid="'+row.id+'" data-max="'+row.qty+'" style="border-top:1px dashed var(--border);padding-top:10px;margin-top:10px;">'+
+          '<div class="lot-top"><span class="sku-chip '+(SKU_CHIP[row.sku]||'')+'">'+row.sku+'</span>'+
+            '<span class="lot-code">'+row.lot+'</span>'+molePill+
+            (row.furnace ? '<span class="hist-sub">เตา '+row.furnace+'</span>' : '')+
+            '<span class="hist-sub" style="margin-left:auto">เหลือจัดเก็บ <b class="remain-lbl">'+Math.round(row.qty)+'</b> ถุง</span></div>'+
+          '<div class="alloc-list"></div>'+
+          '<span class="add-split" onclick="addAllocBlock(this)">+ จัดเก็บ / แบ่งเก็บอีกโซน</span>'+
+        '</div>';
+      }).join('');
+      return '<div class="pend-card" data-trip="'+t.tripId+'">'+
+        '<div class="pend-head"><div><div class="lot-top"><span style="font-family:var(--mono);font-weight:700;font-size:14px;">เที่ยว '+t.tripId.replace('TRIP-','')+'</span></div>'+
+          '<div class="hist-sub">'+t.rows.length+' lot จากโรงงาน</div></div>'+
+          '<div class="pend-status">รวม '+Math.round(t.totalQty)+' ถุง</div></div>'+
+        lotsHtml+
+        '<button class="btn btn-in" style="margin-top:14px;" onclick="confirmTrip(this)">✓ ยืนยันรับเข้าคลัง (เท่าที่จัดเก็บแล้ว)</button>'+
       '</div>';
     }).join('');
+    // เติม allocation block แรกให้ทุก lot อัตโนมัติ (ค่าเริ่มต้น = จำนวนที่เหลือทั้งหมด)
+    document.querySelectorAll('.trip-lot-row').forEach(function(row){ addAllocBlock(row.querySelector('.add-split')); });
   } catch(err) {
     el.innerHTML = '<div class="empty-state">โหลดไม่สำเร็จ: ' + err.message + '</div>';
   }
 }
-async function confirmGroup(btn){
+function addAllocBlock(triggerEl){
+  const row = triggerEl.closest('.trip-lot-row');
+  const list = row.querySelector('.alloc-list');
+  const max = parseFloat(row.dataset.max);
+  const usedSoFar = Array.from(list.querySelectorAll('.alloc-qty')).reduce(function(s,inp){ return s + (parseFloat(inp.value)||0); }, 0);
+  const defaultQty = Math.max(0, Math.round((max - usedSoFar) * 100) / 100);
+  const block = document.createElement('div');
+  block.className = 'split-row alloc-block';
+  block.innerHTML =
+    '<input type="number" class="alloc-qty" value="'+defaultQty+'" min="0" style="max-width:70px" oninput="updateRemainLabel(this)">'+
+    '<select class="alloc-wh"><option value="78">คลัง 7-8</option><option value="910">คลัง 9-10</option></select>'+
+    '<input class="alloc-zone" placeholder="Zone เช่น P, K, F">'+
+    '<button class="step-btn" onclick="this.closest(\'.alloc-block\').remove();updateRemainLabel(this)" title="ลบ">✕</button>';
+  list.appendChild(block);
+  updateRemainLabel(block);
+}
+function updateRemainLabel(el){
+  const row = el.closest('.trip-lot-row');
+  const max = parseFloat(row.dataset.max);
+  const used = Array.from(row.querySelectorAll('.alloc-qty')).reduce(function(s,inp){ return s + (parseFloat(inp.value)||0); }, 0);
+  row.querySelector('.remain-lbl').textContent = Math.round(Math.max(0, max - used) * 100) / 100;
+}
+async function confirmTrip(btn){
   const card = btn.closest('.pend-card');
-  const wh = card.querySelector('.pend-wh').value;
-  const zone = card.querySelector('.pend-zone').value.trim();
-  if (!zone) { toast('กรอกโซนปลายทางในคลังก่อน', false); return; }
+  const allocations = [];
+  let invalid = false;
+  card.querySelectorAll('.trip-lot-row').forEach(function(row){
+    const rowId = row.dataset.rowid;
+    row.querySelectorAll('.alloc-block').forEach(function(block){
+      const qty = parseFloat(block.querySelector('.alloc-qty').value) || 0;
+      const wh = block.querySelector('.alloc-wh').value;
+      const zone = block.querySelector('.alloc-zone').value.trim();
+      if (qty <= 0) return; // ไม่กรอก/เป็น 0 = ยังไม่จัดเก็บส่วนนี้ตอนนี้
+      if (!zone) { invalid = true; return; }
+      allocations.push({ rowId: rowId, qty: qty, wh: wh, zone: zone });
+    });
+  });
+  if (invalid) { toast('กรอกโซนปลายทางให้ครบทุกช่องที่มีจำนวน', false); return; }
+  if (!allocations.length) { toast('ยังไม่ได้จัดเก็บรายการใดเลย (จำนวนเป็น 0 ทั้งหมด)', false); return; }
+
   btn.disabled = true;
   try {
-    const r = await apiPost({
-      action: 'confirmFactoryReceive',
-      rowIds: card.dataset.rowids, wh: wh, zone: zone, user: ''
-    });
+    const r = await apiPost({ action: 'confirmFactoryReceive', allocations: allocations, user: '' });
     if (r.success) {
-      toast('รับเข้าคลังแล้ว ' + r.qty + ' ถุง (' + r.coarseLot + ')', true);
+      toast('รับเข้าคลังแล้ว (' + r.groups + ' บรรทัด)', true);
       loadPending();
       loadFactoryStock();
     } else {
@@ -722,6 +813,151 @@ async function confirmGroup(btn){
     btn.disabled = false;
   }
 }
+async function loadTripCounters(){
+  try {
+    const r = await apiGet('getTripCounters');
+    if (!r.success) return;
+    const c = r.data;
+    let box = document.getElementById('tripCounterBox');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'tripCounterBox';
+      box.className = 'stat-row';
+      box.style.marginBottom = '12px';
+      document.getElementById('pendingList').before(box);
+    }
+    box.innerHTML =
+      '<div class="stat-card"><div class="stat-label">เที่ยวรวมวันนี้</div><div class="stat-val">'+c.totalTrips+'</div><div class="stat-unit">เที่ยว</div></div>'+
+      '<div class="stat-card"><div class="stat-label">1-12 ถุง</div><div class="stat-val">'+c.group1+'</div><div class="stat-unit">เที่ยว</div></div>'+
+      '<div class="stat-card"><div class="stat-label">13+ ถุง</div><div class="stat-val">'+c.group2+'</div><div class="stat-unit">เที่ยว</div></div>';
+  } catch(err) { /* เงียบไว้ ไม่กระทบหน้าหลัก */ }
+}
+
+// ── Sale document (CL-3.2C) ──
+let saleSelection = {}; // batchLot -> {qty, max, saleLot, meta}
+let currentSaleDocNo = null;
+
+async function loadSaleBatches(){
+  saleSelection = {};
+  document.getElementById('saleSelectView').style.display = 'block';
+  document.getElementById('saleDocView').style.display = 'none';
+  const el = document.getElementById('saleBatchList');
+  el.innerHTML = '<div class="empty-state">กำลังโหลด…</div>';
+  try {
+    const r = await apiGet('getSellableBatches');
+    if (!r.success) throw new Error(r.error || 'load failed');
+    const batches = r.data || [];
+    if (!batches.length) { el.innerHTML = '<div class="empty-state"><div class="big">📭</div>ไม่มี Batch CL-3.2C ที่ขายได้ตอนนี้</div>'; updateSaleFooter(); return; }
+    el.innerHTML = batches.map(function(b){
+      return '<div class="lot-card" data-batch="'+b.batchLot+'" data-max="'+b.qtyRemaining+'" onclick="toggleSaleBatch(this)">'+
+        '<div class="checkbox"></div>'+
+        '<div class="lot-info">'+
+          '<div class="lot-top"><span class="sku-chip chip-32c">CL-3.2C</span><span class="lot-code">'+b.batchLot+'</span></div>'+
+          '<div class="lot-meta">เตา '+b.furnace+' · '+b.warehouse+' โซน '+b.zone+' · รหัสหยาบ '+b.coarseLot+'</div>'+
+          '<div class="qty-stepper" style="flex-direction:column;align-items:stretch;gap:8px">'+
+            '<div style="display:flex;align-items:center;gap:8px">'+
+              '<button class="step-btn" onclick="event.stopPropagation();stepSaleQty(this,-1)">−</button>'+
+              '<div class="step-val">'+Math.round(b.qtyRemaining)+'</div>'+
+              '<button class="step-btn" onclick="event.stopPropagation();stepSaleQty(this,1)">+</button>'+
+              '<span class="step-max">จาก '+Math.round(b.qtyRemaining)+' ถุงที่เหลือ</span>'+
+            '</div>'+
+            '<input class="sale-lot-input" placeholder="เลข Lot ขาย เช่น C2608/045" style="padding:9px;border-radius:8px;border:1.5px solid var(--border2);font-family:var(--font);font-size:13.5px" onclick="event.stopPropagation()" oninput="setSaleLot(this)">'+
+          '</div>'+
+        '</div>'+
+        '<div class="lot-qty"><div class="lot-qty-num">'+Math.round(b.qtyRemaining)+'</div><div class="lot-qty-lbl">ถุง</div></div>'+
+      '</div>';
+    }).join('');
+  } catch(err) {
+    el.innerHTML = '<div class="empty-state">โหลดไม่สำเร็จ: ' + err.message + '</div>';
+  }
+  updateSaleFooter();
+}
+function toggleSaleBatch(card){
+  card.classList.toggle('sel');
+  const box = card.querySelector('.checkbox');
+  const batchLot = card.dataset.batch;
+  const max = parseFloat(card.dataset.max);
+  if (card.classList.contains('sel')) {
+    box.textContent = '✓';
+    saleSelection[batchLot] = { qty: max, max: max, saleLot: '' };
+    card.querySelector('.step-val').textContent = Math.round(max);
+  } else {
+    box.textContent = '';
+    delete saleSelection[batchLot];
+  }
+  updateSaleFooter();
+}
+function stepSaleQty(btn, delta){
+  const card = btn.closest('.lot-card');
+  const batchLot = card.dataset.batch;
+  if (!saleSelection[batchLot]) return;
+  const max = saleSelection[batchLot].max;
+  let q = saleSelection[batchLot].qty + delta;
+  q = Math.max(1, Math.min(max, q));
+  saleSelection[batchLot].qty = q;
+  card.querySelector('.step-val').textContent = q;
+  card.querySelector('.lot-qty-num').textContent = q;
+  updateSaleFooter();
+}
+function setSaleLot(input){
+  const card = input.closest('.lot-card');
+  const batchLot = card.dataset.batch;
+  if (saleSelection[batchLot]) saleSelection[batchLot].saleLot = input.value.trim();
+}
+function updateSaleFooter(){
+  const keys = Object.keys(saleSelection);
+  const total = keys.reduce(function(s,k){ return s + saleSelection[k].qty; }, 0);
+  document.getElementById('saleCount').textContent = 'เลือกแล้ว ' + keys.length + ' batch';
+  document.getElementById('saleTotal').textContent = 'รวม ' + Math.round(total) + ' ถุง';
+}
+async function submitSaleDocument(){
+  const keys = Object.keys(saleSelection);
+  if (!keys.length) { toast('เลือกอย่างน้อย 1 Batch ก่อน', false); return; }
+  const missingLot = keys.find(function(k){ return !saleSelection[k].saleLot; });
+  if (missingLot) { toast('กรอกเลข Lot ขายให้ครบทุก Batch ที่เลือก', false); return; }
+
+  const items = keys.map(function(k){ return { batchLot: k, saleLot: saleSelection[k].saleLot, qtyBags: saleSelection[k].qty }; });
+  try {
+    const r = await apiPost({ action: 'createSaleDocument', items: items, user: '' });
+    if (!r.success) { toast('สร้างเอกสารไม่สำเร็จ: ' + (r.error||''), false); return; }
+    currentSaleDocNo = r.docNo;
+    renderSaleDoc(r.lines);
+    document.getElementById('saleSelectView').style.display = 'none';
+    document.getElementById('saleDocView').style.display = 'block';
+    toast('สร้างเอกสาร ' + r.docNo + ' แล้ว (ยังไม่ตัดสต๊อก)', true);
+  } catch(err) {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + err.message, false);
+  }
+}
+function renderSaleDoc(lines){
+  document.getElementById('saleDocDate').textContent = 'เลขที่เอกสาร: ' + currentSaleDocNo + ' — วันที่ ' + new Date().toLocaleDateString('th-TH');
+  document.getElementById('saleDocRows').innerHTML = lines.map(function(l){
+    return '<tr>'+
+      '<td style="border:1px solid var(--border);padding:6px">'+l.saleLot+'</td>'+
+      '<td style="border:1px solid var(--border);padding:6px">'+l.batchLot+'</td>'+
+      '<td style="border:1px solid var(--border);padding:6px;text-align:center">'+l.qtyBags+'</td>'+
+      '<td style="border:1px solid var(--border);padding:6px;text-align:center">ถุง</td>'+
+      '<td style="border:1px solid var(--border);padding:6px;text-align:right">'+l.weightKg.toLocaleString()+'</td>'+
+    '</tr>';
+  }).join('');
+}
+async function confirmShipCurrentDoc(){
+  if (!currentSaleDocNo) return;
+  if (!confirm('ยืนยันว่าส่งของออกจริงแล้ว? ระบบจะตัดสต๊อกทันที')) return;
+  try {
+    const r = await apiPost({ action: 'confirmSaleShipped', docNo: currentSaleDocNo, user: '' });
+    if (r.success) {
+      toast('ยืนยันส่งของ + ตัดสต๊อกแล้ว', true);
+      loadFactoryStock();
+      loadSaleBatches();
+    } else {
+      toast('ยืนยันไม่สำเร็จ: ' + (r.error||''), false);
+    }
+  } catch(err) {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + err.message, false);
+  }
+}
+function backToSaleSelect(){ loadSaleBatches(); }
 
 // ── History ──
 async function loadHistory(){
