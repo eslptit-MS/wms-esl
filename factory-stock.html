@@ -456,11 +456,23 @@ async function apiGet(action, params) {
   const res = await fetch(WORKER_URL + '?' + qs.toString(), { headers: { 'X-WMS-Key': WMS_KEY } });
   return res.json();
 }
+async function computeIdemKey(payload) {
+  // สร้างรหัสจาก "เนื้อหาจริง" ของคำขอ (ไม่รวม key) เพื่อให้การส่งซ้ำด้วย
+  // ข้อมูลชุดเดียวกัน (ไม่ว่าจะเพราะ network retry หรือคนกดปุ่มซ้ำเอง)
+  // ได้รหัสเดิมเป๊ะ ระบบฝั่ง Worker จะรู้ว่าซ้ำแล้วไม่บันทึกซ้ำ
+  const { key, ...rest } = payload;
+  const str = JSON.stringify(rest, Object.keys(rest).sort());
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 async function apiPost(body) {
+  const payload = Object.assign({ key: WMS_KEY }, body);
+  payload.idemKey = await computeIdemKey(payload);
   const res = await fetch(WORKER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(Object.assign({ key: WMS_KEY }, body))
+    body: JSON.stringify(payload)
   });
   return res.json();
 }
