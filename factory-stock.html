@@ -129,6 +129,9 @@ body { display: flex; justify-content: center; }
 .hist-right { text-align: right; }
 .hist-qty { font-family: var(--mono); font-weight: 700; font-size: 15px; }
 .hist-time { font-size: 11px; color: var(--text3); }
+.hist-edit-btns { display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end; }
+.hist-mini-btn { width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--border2); background: var(--bg3); font-size: 14px; cursor: pointer; }
+.hist-mini-btn.danger { border-color: #fca5a5; background: var(--red-bg); }
 
 .floor-plan { background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
 .floor-canvas { position: relative; width: 100%; height: 260px; background: var(--bg3); border-radius: var(--radius-sm); border: 1px dashed var(--border2); overflow: hidden; }
@@ -397,7 +400,7 @@ body { display: flex; justify-content: center; }
     <button class="nav-btn" data-page="sale" data-title="ขาย — ขอใบเซอร์ QC" data-pin="1">
       <div class="nav-ic">📄</div>ขาย
     </button>
-    <button class="nav-btn" data-page="history" data-title="ประวัติทั้งหมด">
+    <button class="nav-btn" data-page="history" data-title="ประวัติทั้งหมด" data-pin="1">
       <div class="nav-ic">🕘</div>ประวัติ
     </button>
   </div>
@@ -424,6 +427,51 @@ body { display: flex; justify-content: center; }
     <div id="pinErr" style="color:#dc2626;font-size:13px;height:18px;margin-bottom:8px"></div>
     <button class="btn btn-in" onclick="submitPin()">เข้าใช้งาน</button>
     <button class="btn" style="background:var(--bg3);color:var(--text2);margin-top:8px" onclick="closePinOverlay()">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- EDIT ROW OVERLAY -->
+<div id="editOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--bg2);border-radius:var(--radius);padding:20px;width:100%;max-width:400px;max-height:85dvh;overflow-y:auto;">
+    <div style="font-size:17px;font-weight:700;margin-bottom:14px">✏️ แก้ไขรายการ</div>
+    <input type="hidden" id="editRowId">
+
+    <div class="fg"><label>ประเภทเหตุการณ์</label>
+      <select id="editActivityType"><option value="รับเข้า">รับเข้า</option><option value="ย้ายไปคลัง">ย้ายไปคลัง</option></select>
+    </div>
+    <div class="fg"><label>ประเภท CL</label>
+      <select id="editSku"><option value="CL-2.5">CL-2.5</option><option value="CL-3.2">CL-3.2</option><option value="CL-3.2C">CL-3.2C</option></select>
+    </div>
+    <div class="fg"><label>เลข Lot เต็ม</label><input id="editLot"></div>
+    <div class="two-col">
+      <div class="fg"><label>จำนวนถุง</label><input type="number" id="editQty"></div>
+      <div class="fg"><label>เตา</label>
+        <select id="editFurnace"><option value="">—</option><option value="F#1">F#1</option><option value="F#2">F#2</option><option value="F#3">F#3</option><option value="F#4">F#4</option></select>
+      </div>
+    </div>
+    <div class="fg"><label>ช่วง Mole (สี Tag)</label>
+      <select id="editMole">
+        <option value="">— ไม่มี (CL-3.2C) —</option>
+        <option value="WHITE">WHITE</option><option value="PINK">PINK</option>
+        <option value="GREEN-L">GREEN-L</option><option value="GREEN-D">GREEN-D</option>
+        <option value="PURPLE">PURPLE</option><option value="YELLOW">YELLOW</option>
+        <option value="ORANGE">ORANGE</option><option value="BLUE-L">BLUE-L</option>
+      </select>
+    </div>
+    <div class="fg"><label>โซน</label>
+      <select id="editZone">
+        <option value="Stock-1">stock 1</option><option value="Stock-2">stock 2</option>
+        <option value="Stock-3">stock 3</option><option value="Stock-4">stock 4</option>
+        <option value="Stock-PT">stock 5 (PT)</option>
+      </select>
+    </div>
+    <div class="fg"><label>เลขที่เที่ยว (Doc_No)</label><input id="editDocNo"></div>
+    <div class="fg"><label>ผู้บันทึก</label><input id="editRecorder"></div>
+    <div class="fg"><label>หมายเหตุ</label><input id="editRemark"></div>
+    <div class="fg"><label>น้ำหนักจริง (kg) — เฉพาะ CL-3.2C</label><input type="number" id="editWeightKg" placeholder="เว้นว่างได้ถ้าไม่แก้"></div>
+
+    <button class="btn btn-in" onclick="submitEditRow()">✓ บันทึกการแก้ไข</button>
+    <button class="btn" style="background:var(--bg3);color:var(--text2);margin-top:8px" onclick="closeEditRow()">ยกเลิก</button>
   </div>
 </div>
 
@@ -980,19 +1028,91 @@ async function loadHistory(){
   try {
     const r = await apiGet('getFactoryLogs');
     if (!r.success) throw new Error(r.error||'load failed');
-    const logs = (r.data||[]).slice().reverse();
+    const logs = r.data || []; // D1 คืนมาเรียงใหม่สุดก่อนอยู่แล้ว ไม่ต้อง reverse
     if (!logs.length) { el.innerHTML = '<div class="empty-state"><div class="big">📭</div>ยังไม่มีประวัติ</div>'; return; }
     el.innerHTML = logs.map(function(row){
       const type = row.Activity_Type || '';
       const cls = type.includes('รับเข้า') ? 'hist-in' : 'hist-out';
-      return '<div class="hist-row"><div class="hist-left">'+
+      const editable = row.Transfer_Status !== 'รับเข้าคลังแล้ว';
+      const editBtns = editable ?
+        '<div class="hist-edit-btns">'+
+          '<button class="hist-mini-btn" onclick="openEditRow(\''+row.ID+'\')">✏️</button>'+
+          '<button class="hist-mini-btn danger" onclick="deleteRow(\''+row.ID+'\')">🗑️</button>'+
+        '</div>' : '';
+      return '<div class="hist-row" data-id="'+row.ID+'"><div class="hist-left">'+
         '<span class="hist-type '+cls+'">'+type+'</span>'+
         '<div class="hist-lot">'+(row.Product_Code||'')+' · '+(row.Lot_Number||'')+'</div>'+
-        '<div class="hist-sub">'+(row.Zone||'')+(row.Remark?' · '+row.Remark:'')+'</div>'+
-        '</div><div class="hist-right"><div class="hist-qty">'+Math.round(row.Quantity||0)+' ถุง</div></div></div>';
+        '<div class="hist-sub">'+(row.Zone||'')+(row.Remark?' · '+row.Remark:'')+(row.Edited_At?' · แก้ไขแล้ว':'')+'</div>'+
+        '</div><div class="hist-right"><div class="hist-qty">'+Math.round(row.Quantity||0)+' ถุง</div>'+editBtns+'</div></div>';
     }).join('');
+    window._historyRows = logs; // เก็บไว้ใช้ตอนเปิดฟอร์มแก้ไข ไม่ต้องยิง API ซ้ำ
   } catch(err) {
     el.innerHTML = '<div class="empty-state">โหลดไม่สำเร็จ: ' + err.message + '</div>';
+  }
+}
+
+// ── แก้ไข / ลบ รายการในประวัติ (เฉพาะที่ยังไม่ยืนยันรับเข้าคลัง) ──────
+function openEditRow(id){
+  const row = (window._historyRows||[]).find(function(r){ return String(r.ID) === String(id); });
+  if (!row) return;
+  document.getElementById('editRowId').value = row.ID;
+  document.getElementById('editActivityType').value = row.Activity_Type || 'รับเข้า';
+  document.getElementById('editSku').value = row.Product_Code || '';
+  document.getElementById('editMole').value = row.Mole_Type || '';
+  document.getElementById('editLot').value = row.Lot_Number || '';
+  document.getElementById('editQty').value = row.Quantity || '';
+  document.getElementById('editZone').value = row.Zone || '';
+  document.getElementById('editFurnace').value = row.Furnace || '';
+  document.getElementById('editDocNo').value = row.Doc_No || '';
+  document.getElementById('editRecorder').value = row.Recorder || '';
+  document.getElementById('editRemark').value = row.Remark || '';
+  document.getElementById('editWeightKg').value = '';
+  document.getElementById('editOverlay').style.display = 'flex';
+}
+function closeEditRow(){ document.getElementById('editOverlay').style.display = 'none'; }
+async function submitEditRow(){
+  const id = document.getElementById('editRowId').value;
+  try {
+    const r = await apiPost({
+      action: 'updateFactoryRow', id: id,
+      activityType: document.getElementById('editActivityType').value,
+      source: document.getElementById('editActivityType').value === 'รับเข้า' ? 'PT' : 'MS',
+      sku: document.getElementById('editSku').value,
+      moleType: document.getElementById('editMole').value,
+      lot: document.getElementById('editLot').value.trim(),
+      qty: document.getElementById('editQty').value,
+      zone: document.getElementById('editZone').value,
+      furnace: document.getElementById('editFurnace').value,
+      docNo: document.getElementById('editDocNo').value.trim(),
+      recorder: document.getElementById('editRecorder').value.trim(),
+      remark: document.getElementById('editRemark').value.trim(),
+      weightKg: document.getElementById('editWeightKg').value || ''
+    });
+    if (r.success) {
+      toast('แก้ไขรายการแล้ว', true);
+      closeEditRow();
+      loadHistory();
+      loadFactoryStock();
+    } else {
+      toast('แก้ไขไม่สำเร็จ: ' + (r.error||''), false);
+    }
+  } catch(err) {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + err.message, false);
+  }
+}
+async function deleteRow(id){
+  if (!confirm('ลบรายการนี้ถาวร? กู้คืนไม่ได้')) return;
+  try {
+    const r = await apiPost({ action: 'deleteFactoryRow', id: id });
+    if (r.success) {
+      toast('ลบรายการแล้ว', true);
+      loadHistory();
+      loadFactoryStock();
+    } else {
+      toast('ลบไม่สำเร็จ: ' + (r.error||''), false);
+    }
+  } catch(err) {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + err.message, false);
   }
 }
 
