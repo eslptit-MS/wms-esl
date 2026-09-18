@@ -500,8 +500,8 @@ function toast(msg, ok) {
 }
 
 async function apiGet(action, params) {
-  const qs = new URLSearchParams(Object.assign({action:action}, params||{}));
-  const res = await fetch(WORKER_URL + '?' + qs.toString(), { headers: { 'X-WMS-Key': WMS_KEY } });
+  const qs = new URLSearchParams(Object.assign({action:action, _t: Date.now()}, params||{}));
+  const res = await fetch(WORKER_URL + '?' + qs.toString(), { headers: { 'X-WMS-Key': WMS_KEY }, cache: 'no-store' });
   return res.json();
 }
 async function computeIdemKey(payload) {
@@ -520,6 +520,7 @@ async function apiPost(body) {
   const res = await fetch(WORKER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
     body: JSON.stringify(payload)
   });
   return res.json();
@@ -688,8 +689,10 @@ async function submitReceive(){
 }
 
 // ── Transfer out ──
+let pendingTripId = null; // จำเที่ยวเดิมไว้ใช้ซ้ำตอน retry กันเที่ยวซ้ำเวลากดซ้ำ
 function renderTransferList(){
   transferSelection = {};
+  pendingTripId = null; // เปิดหน้าใหม่ = เริ่มเที่ยวใหม่
   const el = document.getElementById('transferList');
   if (!factoryStock.length) { el.innerHTML = '<div class="empty-state"><div class="big">📭</div>ยังไม่มีสต๊อกในโรงงาน</div>'; updateTransferFooter(); return; }
   el.innerHTML = factoryStock.map(function(r, idx){
@@ -757,7 +760,8 @@ async function submitTransfer(){
   const keys = Object.keys(transferSelection);
   if (!keys.length) { toast('เลือกอย่างน้อย 1 lot ก่อน', false); return; }
   const btn = document.getElementById('tfSubmitBtn'); btn.disabled = true;
-  const tripId = makeTripId(); // ทุก lot ที่ส่งพร้อมกันในครั้งนี้ = 1 เที่ยวเดียวกัน
+  if (!pendingTripId) pendingTripId = makeTripId(); // ใช้เลขเดิมถ้ากำลัง retry เที่ยวเดิม
+  const tripId = pendingTripId;
   try {
     const items = keys.map(function(key){
       const parts = key.split('|'); // zone|sku|lot
@@ -772,13 +776,17 @@ async function submitTransfer(){
     const r = await apiPost({ action: 'saveFactoryBatch', items: items, docNo: tripId, user: '' });
     if (r.success) {
       toast('ส่งย้ายเที่ยว ' + tripId + ' (' + r.count + ' lot) ไปรอคลังรับเข้าแล้ว', true);
+      pendingTripId = null; // ส่งสำเร็จแล้ว เที่ยวถัดไปให้เริ่มเลขใหม่
+      loadFactoryStock();
+      renderTransferList(); // รีเฟรชรายการ+เลือกใหม่ได้ปลอดภัย เพราะจบเที่ยวนี้แล้ว
     } else {
       toast('ส่งย้ายไม่สำเร็จ: ' + (r.error||''), false);
+      // ไม่รีเซ็ต pendingTripId และไม่ re-render list — กันไว้เผื่อกดซ้ำจะได้ใช้
+      // เลขเที่ยว+รายการที่เลือกไว้ชุดเดิม ระบบกันซ้ำฝั่ง Worker จะจับได้ถูกต้อง
     }
-    loadFactoryStock();
-    renderTransferList();
   } catch(err) {
     toast('เชื่อมต่อไม่สำเร็จ: ' + err.message, false);
+    // ไม่รีเซ็ต pendingTripId เช่นกัน (เผื่อจริงๆ ส่งสำเร็จแล้วแค่ตอบกลับไม่ทัน)
   } finally { btn.disabled = false; }
 }
 
