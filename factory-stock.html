@@ -777,7 +777,7 @@ async function submitTransfer(){
     if (r.success) {
       toast('ส่งย้ายเที่ยว ' + tripId + ' (' + r.count + ' lot) ไปรอคลังรับเข้าแล้ว', true);
       pendingTripId = null; // ส่งสำเร็จแล้ว เที่ยวถัดไปให้เริ่มเลขใหม่
-      loadFactoryStock();
+      await loadFactoryStock(); // ต้องรอให้โหลดข้อมูลใหม่เสร็จก่อน ไม่งั้นวาดหน้าจอด้วยข้อมูลเก่า
       renderTransferList(); // รีเฟรชรายการ+เลือกใหม่ได้ปลอดภัย เพราะจบเที่ยวนี้แล้ว
     } else {
       toast('ส่งย้ายไม่สำเร็จ: ' + (r.error||''), false);
