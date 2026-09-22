@@ -886,10 +886,16 @@ async function submitReceive(){
     });
     if (r.success) {
       toast('บันทึกรับเข้า ' + lot + ' (' + qty + ' ถุง) แล้ว', true);
+      document.getElementById('recvSku').value = '';
       document.getElementById('recvLot').value = '';
       document.getElementById('recvTon').value = '';
       document.getElementById('recvBags').value = '';
+      document.getElementById('recvMole').selectedIndex = 0;
+      document.getElementById('recvFurnace').selectedIndex = 0;
+      document.getElementById('recvZone').value = '';
       document.getElementById('recvWeightKg').value = '';
+      document.getElementById('weightGroup').style.display = 'none';
+      document.getElementById('bagsHint').textContent = 'ระบบคำนวณให้จากน้ำหนัก แก้ไขได้ถ้านับจริงไม่ตรง';
       loadFactoryStock();
     } else {
       toast('บันทึกไม่สำเร็จ: ' + (r.error||''), false);
