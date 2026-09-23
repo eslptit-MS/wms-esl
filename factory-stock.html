@@ -273,6 +273,10 @@ body { display: flex; justify-content: center; }
 
         <div class="fg"><label>เลขที่ Lot เต็ม <span class="req">*</span></label><input id="recvLot" placeholder="2608/167"></div>
 
+        <div class="fg"><label>วันที่ส่งมอบ</label><input type="date" id="recvDeliveryDate"></div>
+
+        <div class="fg"><label>เลขที่ใบส่งมอบ</label><input id="recvDeliveryDocNo" placeholder="เช่น ESL-F-PE-32/00"></div>
+
         <div class="two-col">
           <div class="fg">
             <label>น้ำหนักตามใบส่งมอบ (ตัน)</label>
@@ -839,7 +843,8 @@ function openZoneSheet(zone){
   const list = document.getElementById('sheetSkuList');
   list.innerHTML = items.length ? items.map(function(i){
     return '<div class="sku-row"><div><div class="sku-code">'+i.sku+'</div>'+
-      '<div class="sku-lot">Lot '+i.lot+(i.moleType?' · '+i.moleType:'')+'</div></div>'+
+      '<div class="sku-lot">Lot '+i.lot+(i.moleType?' · '+i.moleType:'')+'</div>'+
+      ((i.deliveryDate||i.deliveryDocNo)?'<div class="sku-lot">'+(i.deliveryDate?'ส่งมอบ '+i.deliveryDate:'')+(i.deliveryDocNo?' · เลขที่ '+i.deliveryDocNo:'')+'</div>':'')+'</div>'+
       '<div><div class="sku-qty">'+Math.round(i.qty)+'</div><div class="sku-qty-label">ถุง</div></div></div>';
   }).join('') : '<div class="empty-state" style="padding:20px;"><div class="big">📭</div>ยังไม่มีของวางในโซนนี้</div>';
   document.getElementById('sheetOverlay').classList.add('show');
@@ -882,13 +887,16 @@ async function submitReceive(){
       furnace: document.getElementById('recvFurnace').value,
       zone: zone, source: 'PT',
       user: document.getElementById('recvUser').value,
-      docNo: '', note: '',
+      docNo: document.getElementById('recvDeliveryDate').value, note: '',
+      deliveryDocNo: document.getElementById('recvDeliveryDocNo').value.trim(),
       weightKg: document.getElementById('recvWeightKg').value || ''
     });
     if (r.success) {
       toast('บันทึกรับเข้า ' + lot + ' (' + qty + ' ถุง) แล้ว', true);
       document.getElementById('recvSku').value = '';
       document.getElementById('recvLot').value = '';
+      document.getElementById('recvDeliveryDate').value = '';
+      document.getElementById('recvDeliveryDocNo').value = '';
       document.getElementById('recvTon').value = '';
       document.getElementById('recvBags').value = '';
       document.getElementById('recvMole').selectedIndex = 0;
