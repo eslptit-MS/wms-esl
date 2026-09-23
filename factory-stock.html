@@ -273,8 +273,6 @@ body { display: flex; justify-content: center; }
 
         <div class="fg"><label>เลขที่ Lot เต็ม <span class="req">*</span></label><input id="recvLot" placeholder="2608/167"></div>
 
-        <div class="fg"><label>วันที่ส่งมอบ</label><input type="date" id="recvDeliveryDate"></div>
-
         <div class="fg"><label>เลขที่ใบส่งมอบ</label><input id="recvDeliveryDocNo" placeholder="เช่น ESL-F-PE-32/00"></div>
 
         <div class="two-col">
@@ -525,6 +523,7 @@ body { display: flex; justify-content: center; }
     <div class="fg"><label>เลขที่เที่ยว (Doc_No)</label><input id="editDocNo"></div>
     <div class="fg"><label>ผู้บันทึก</label><input id="editRecorder"></div>
     <div class="fg"><label>หมายเหตุ</label><input id="editRemark"></div>
+    <div class="fg"><label>เลขที่ใบส่งมอบ</label><input id="editDeliveryDocNo"></div>
     <div class="fg"><label>น้ำหนักจริง (kg) — เฉพาะ CL-3.2C</label><input type="number" id="editWeightKg" placeholder="เว้นว่างได้ถ้าไม่แก้"></div>
 
     <button class="btn btn-in" onclick="submitEditRow()">✓ บันทึกการแก้ไข</button>
@@ -844,7 +843,7 @@ function openZoneSheet(zone){
   list.innerHTML = items.length ? items.map(function(i){
     return '<div class="sku-row"><div><div class="sku-code">'+i.sku+'</div>'+
       '<div class="sku-lot">Lot '+i.lot+(i.moleType?' · '+i.moleType:'')+'</div>'+
-      ((i.deliveryDate||i.deliveryDocNo)?'<div class="sku-lot">'+(i.deliveryDate?'ส่งมอบ '+i.deliveryDate:'')+(i.deliveryDocNo?' · เลขที่ '+i.deliveryDocNo:'')+'</div>':'')+'</div>'+
+      (i.deliveryDocNo?'<div class="sku-lot">เลขที่ใบส่งมอบ '+i.deliveryDocNo+'</div>':'')+'</div>'+
       '<div><div class="sku-qty">'+Math.round(i.qty)+'</div><div class="sku-qty-label">ถุง</div></div></div>';
   }).join('') : '<div class="empty-state" style="padding:20px;"><div class="big">📭</div>ยังไม่มีของวางในโซนนี้</div>';
   document.getElementById('sheetOverlay').classList.add('show');
@@ -887,7 +886,7 @@ async function submitReceive(){
       furnace: document.getElementById('recvFurnace').value,
       zone: zone, source: 'PT',
       user: document.getElementById('recvUser').value,
-      docNo: document.getElementById('recvDeliveryDate').value, note: '',
+      docNo: '', note: '',
       deliveryDocNo: document.getElementById('recvDeliveryDocNo').value.trim(),
       weightKg: document.getElementById('recvWeightKg').value || ''
     });
@@ -895,7 +894,6 @@ async function submitReceive(){
       toast('บันทึกรับเข้า ' + lot + ' (' + qty + ' ถุง) แล้ว', true);
       document.getElementById('recvSku').value = '';
       document.getElementById('recvLot').value = '';
-      document.getElementById('recvDeliveryDate').value = '';
       document.getElementById('recvDeliveryDocNo').value = '';
       document.getElementById('recvTon').value = '';
       document.getElementById('recvBags').value = '';
@@ -1300,6 +1298,7 @@ function openEditRow(id){
   document.getElementById('editDocNo').value = row.Doc_No || '';
   document.getElementById('editRecorder').value = row.Recorder || '';
   document.getElementById('editRemark').value = row.Remark || '';
+  document.getElementById('editDeliveryDocNo').value = row.Delivery_Doc_No || '';
   document.getElementById('editWeightKg').value = '';
   document.getElementById('editOverlay').style.display = 'flex';
 }
@@ -1320,6 +1319,7 @@ async function submitEditRow(){
       docNo: document.getElementById('editDocNo').value.trim(),
       recorder: document.getElementById('editRecorder').value.trim(),
       remark: document.getElementById('editRemark').value.trim(),
+      deliveryDocNo: document.getElementById('editDeliveryDocNo').value.trim(),
       weightKg: document.getElementById('editWeightKg').value || ''
     });
     if (r.success) {
