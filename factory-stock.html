@@ -1061,7 +1061,7 @@ function addAllocBlock(triggerEl){
   block.className = 'split-row alloc-block';
   block.innerHTML =
     '<input type="number" class="alloc-qty" value="'+defaultQty+'" min="0" style="max-width:70px" oninput="updateRemainLabel(this)">'+
-    '<select class="alloc-wh"><option value="78">คลัง 7-8</option><option value="910">คลัง 9-10</option></select>'+
+    '<select class="alloc-wh"><option value="78">คลัง 7-8</option><option value="910">คลัง 9-10</option><option value="6">คลัง 6</option></select>'+
     '<input class="alloc-zone" placeholder="Zone เช่น P, K, F">'+
     '<button class="step-btn" onclick="this.closest(\'.alloc-block\').remove();updateRemainLabel(this)" title="ลบ">✕</button>';
   list.appendChild(block);
