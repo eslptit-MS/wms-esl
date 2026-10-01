@@ -1001,12 +1001,12 @@ function mkMidWithNC(topIds,botIds){
 function renderMap(){
   const a=document.getElementById('mapArea');a.innerHTML='';
   if(curWH==='6'){
-    // คลัง 6: แถว A-E, ทางรถวิ่งตรงกลาง, แถว F-J, NC Hold ลอยอยู่มุมขวา
+    // คลัง 6: แถว F-J, ทางรถวิ่งตรงกลาง, แถว A-E, NC Hold ลอยอยู่มุมขวา
     const wrap=document.createElement('div');
     wrap.style.cssText='position:relative;';
-    wrap.appendChild(mkRowF(['A','B','C','D','E']));
-    wrap.appendChild(mkAisle());
     wrap.appendChild(mkRowF(['F','G','H','I','J']));
+    wrap.appendChild(mkAisle());
+    wrap.appendChild(mkRowF(['A','B','C','D','E']));
     wrap.appendChild(mkNC());
     a.appendChild(wrap);
     return;
