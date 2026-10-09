@@ -128,6 +128,17 @@ body { display: flex; justify-content: center; }
 .hist-sub { font-size: 11.5px; color: var(--text3); }
 .hist-right { text-align: right; }
 .hist-qty { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+.hist-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.hist-tab { border: 1.5px solid var(--border2); background: var(--bg2); border-radius: 20px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; color: var(--text); }
+.hist-tab.active { background: var(--green-bg); border-color: #86efac; color: var(--green-t); }
+.hist-group { margin-bottom: 14px; }
+.hist-group-head { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 700; color: var(--text2, #475569); padding: 4px 2px 6px; }
+.hist-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.hist-badge.wait { background: #fef3c7; color: #92400e; }
+.hist-badge.done { background: var(--green-bg); color: var(--green-t); }
+.hist-badge.part { background: #dbeafe; color: #1d4ed8; }
+.hist-dest { font-size: 12px; font-weight: 600; color: #1d4ed8; }
+.hist-dest.wait { color: #92400e; }
 .hist-time { font-size: 11px; color: var(--text3); }
 .hist-edit-btns { display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end; }
 .hist-mini-btn { width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--border2); background: var(--bg3); font-size: 14px; cursor: pointer; }
@@ -382,7 +393,13 @@ body { display: flex; justify-content: center; }
 
     <!-- ================= PAGE: HISTORY ================= -->
     <div class="page" id="page-history">
-      <div class="sec-title">ประวัติทั้งหมด</div>
+      <div class="sec-title">ประวัติ</div>
+      <div class="hist-tabs" id="histTabs">
+        <button class="hist-tab active" data-f="all" onclick="setHistFilter('all')">ทั้งหมด</button>
+        <button class="hist-tab" data-f="pending" onclick="setHistFilter('pending')">⏳ รอรับเข้าคลัง</button>
+        <button class="hist-tab" data-f="moved" onclick="setHistFilter('moved')">✅ รับเข้าคลังแล้ว</button>
+        <button class="hist-tab" data-f="in" onclick="setHistFilter('in')">🏭 รับเข้าโรงงาน</button>
+      </div>
       <div id="historyList"></div>
     </div>
 
@@ -1260,30 +1277,105 @@ async function confirmShipCurrentDoc(){
 function backToSaleSelect(){ loadSaleBatches(); }
 
 // ── History ──
+let histFilter = 'all';
+function setHistFilter(f){
+  histFilter = f;
+  document.querySelectorAll('#histTabs .hist-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.f === f); });
+  renderHistory();
+}
+function fmtThTime(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function histRowHtml(row, mode){
+  // mode: 'trip' = แถวในเที่ยวย้ายออก, 'in' = แถวรับเข้าโรงงาน
+  const done = row.Transfer_Status === 'รับเข้าคลังแล้ว';
+  const editBtns = !done ?
+    '<div class="hist-edit-btns">'+
+      '<button class="hist-mini-btn" onclick="openEditRow(\''+row.ID+'\')">✏️</button>'+
+      '<button class="hist-mini-btn danger" onclick="deleteRow(\''+row.ID+'\')">🗑️</button>'+
+    '</div>' : '';
+  let destLine = '';
+  if (mode === 'trip') {
+    if (done) {
+      const dest = (row.From_To && row.From_To !== 'Factory') ? row.From_To : '(ไม่ได้บันทึกปลายทาง)';
+      destLine = '<div class="hist-dest">→ '+dest+'</div>';
+    } else {
+      destLine = '<div class="hist-dest wait">→ รอ MS คลังจัดเก็บ</div>';
+    }
+  }
+  const furnace = row.Furnace ? ' · เตา '+row.Furnace : '';
+  const mole = row.Mole_Type ? ' · '+row.Mole_Type : '';
+  return '<div class="hist-row" data-id="'+row.ID+'"><div class="hist-left">'+
+    '<div class="hist-lot">'+(row.Product_Code||'')+' · '+(row.Lot_Number||'')+'</div>'+
+    '<div class="hist-sub">'+(mode==='in' ? 'โซน '+(row.Zone||'-')+' · '+fmtThTime(row.Timestamp) : (row.Zone ? 'จากโซน '+row.Zone : ''))+mole+furnace+(row.Remark?' · '+row.Remark:'')+(row.Edited_At?' · แก้ไขแล้ว':'')+'</div>'+
+    destLine+
+    '</div><div class="hist-right"><div class="hist-qty">'+Math.round(row.Quantity||0)+' ถุง</div>'+editBtns+'</div></div>';
+}
+function renderHistory(){
+  const el = document.getElementById('historyList');
+  const logs = window._historyRows || [];
+  const ins = logs.filter(function(r){ return (r.Activity_Type||'').includes('รับเข้า'); });
+  const outs = logs.filter(function(r){ return (r.Activity_Type||'').includes('ย้าย'); });
+
+  // รวมแถวย้ายออกเป็นเที่ยว เรียงเที่ยวใหม่สุดก่อน (ตามเวลาที่กดย้าย)
+  const tripMap = {}, tripOrder = [];
+  outs.forEach(function(r){
+    const k = r.Doc_No || '(ไม่ระบุเที่ยว)';
+    if (!tripMap[k]) { tripMap[k] = { id: k, ts: r.Timestamp, rows: [] }; tripOrder.push(k); }
+    tripMap[k].rows.push(r);
+    if (r.Timestamp && r.Timestamp < tripMap[k].ts) tripMap[k].ts = r.Timestamp; // เวลาแรกสุด = เวลาที่กดย้ายจริง
+  });
+  const trips = tripOrder.map(function(k){ return tripMap[k]; }).sort(function(a,b){ return a.ts < b.ts ? 1 : -1; });
+  trips.forEach(function(t){
+    const pend = t.rows.filter(function(r){ return r.Transfer_Status !== 'รับเข้าคลังแล้ว'; }).length;
+    t.state = pend === 0 ? 'done' : (pend === t.rows.length ? 'wait' : 'part');
+    t.total = t.rows.reduce(function(s,r){ return s + (r.Quantity||0); }, 0);
+  });
+
+  function tripHtml(t){
+    const badge = t.state === 'done' ? '<span class="hist-badge done">รับเข้าคลังแล้ว</span>'
+      : (t.state === 'wait' ? '<span class="hist-badge wait">รอรับเข้าคลัง</span>' : '<span class="hist-badge part">รับเข้าบางส่วน</span>');
+    return '<div class="hist-group"><div class="hist-group-head"><span>🚚 เที่ยว '+t.id.replace('TRIP-','')+' · '+fmtThTime(t.ts)+' · รวม '+Math.round(t.total)+' ถุง</span>'+badge+'</div>'+
+      t.rows.map(function(r){ return histRowHtml(r, 'trip'); }).join('')+'</div>';
+  }
+  function inHtml(){
+    // รับเข้าโรงงาน: แบ่งตามโซน ใหม่สุดอยู่บน
+    const zones = {}, zOrder = [];
+    ins.forEach(function(r){ const z = r.Zone || '-'; if (!zones[z]) { zones[z] = []; zOrder.push(z); } zones[z].push(r); });
+    return zOrder.sort().map(function(z){
+      const rows = zones[z];
+      const sum = rows.reduce(function(s,r){ return s + (r.Quantity||0); }, 0);
+      return '<div class="hist-group"><div class="hist-group-head"><span>🏭 โซน '+z+'</span><span>'+rows.length+' รายการ · '+Math.round(sum)+' ถุง</span></div>'+
+        rows.map(function(r){ return histRowHtml(r, 'in'); }).join('')+'</div>';
+    }).join('');
+  }
+
+  let html = '';
+  if (histFilter === 'all') {
+    if (trips.length) html += '<div class="sec-title">🚚 ย้ายไปคลัง (เที่ยวใหม่สุดอยู่บน)</div>' + trips.map(tripHtml).join('');
+    if (ins.length) html += '<div class="sec-title">🏭 รับเข้าโรงงาน (แยกตามโซน)</div>' + inHtml();
+  } else if (histFilter === 'pending') {
+    const t = trips.filter(function(x){ return x.state !== 'done'; });
+    html = t.length ? t.map(tripHtml).join('') : '<div class="empty-state"><div class="big">✅</div>ไม่มีเที่ยวที่รอรับเข้า</div>';
+  } else if (histFilter === 'moved') {
+    const t = trips.filter(function(x){ return x.state !== 'wait'; });
+    html = t.length ? t.map(tripHtml).join('') : '<div class="empty-state"><div class="big">📭</div>ยังไม่มีเที่ยวที่รับเข้าคลัง</div>';
+  } else if (histFilter === 'in') {
+    html = ins.length ? inHtml() : '<div class="empty-state"><div class="big">📭</div>ยังไม่มีรายการรับเข้า</div>';
+  }
+  el.innerHTML = html || '<div class="empty-state"><div class="big">📭</div>ยังไม่มีประวัติ</div>';
+}
 async function loadHistory(){
   const el = document.getElementById('historyList');
   el.innerHTML = '<div class="empty-state">กำลังโหลด…</div>';
   try {
     const r = await apiGet('getFactoryLogs');
     if (!r.success) throw new Error(r.error||'load failed');
-    const logs = r.data || []; // D1 คืนมาเรียงใหม่สุดก่อนอยู่แล้ว ไม่ต้อง reverse
-    if (!logs.length) { el.innerHTML = '<div class="empty-state"><div class="big">📭</div>ยังไม่มีประวัติ</div>'; return; }
-    el.innerHTML = logs.map(function(row){
-      const type = row.Activity_Type || '';
-      const cls = type.includes('รับเข้า') ? 'hist-in' : 'hist-out';
-      const editable = row.Transfer_Status !== 'รับเข้าคลังแล้ว';
-      const editBtns = editable ?
-        '<div class="hist-edit-btns">'+
-          '<button class="hist-mini-btn" onclick="openEditRow(\''+row.ID+'\')">✏️</button>'+
-          '<button class="hist-mini-btn danger" onclick="deleteRow(\''+row.ID+'\')">🗑️</button>'+
-        '</div>' : '';
-      return '<div class="hist-row" data-id="'+row.ID+'"><div class="hist-left">'+
-        '<span class="hist-type '+cls+'">'+type+'</span>'+
-        '<div class="hist-lot">'+(row.Product_Code||'')+' · '+(row.Lot_Number||'')+'</div>'+
-        '<div class="hist-sub">'+(row.Zone||'')+(row.Remark?' · '+row.Remark:'')+(row.Edited_At?' · แก้ไขแล้ว':'')+'</div>'+
-        '</div><div class="hist-right"><div class="hist-qty">'+Math.round(row.Quantity||0)+' ถุง</div>'+editBtns+'</div></div>';
-    }).join('');
-    window._historyRows = logs; // เก็บไว้ใช้ตอนเปิดฟอร์มแก้ไข ไม่ต้องยิง API ซ้ำ
+    window._historyRows = r.data || []; // เก็บไว้ใช้ตอนเปิดฟอร์มแก้ไข ไม่ต้องยิง API ซ้ำ
+    renderHistory();
   } catch(err) {
     el.innerHTML = '<div class="empty-state">โหลดไม่สำเร็จ: ' + err.message + '</div>';
   }
