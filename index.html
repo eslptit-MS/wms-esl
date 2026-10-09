@@ -722,6 +722,29 @@ function whIdByName(name){if(name==='คลัง 9-10')return'910';if(name==='�
 function allSkus(){const s=new Set();WH_LIST.forEach(wh=>zidOf(wh).forEach(z=>STOCK[wh][z].forEach(r=>s.add(r.sku))));return[...s];}
 
 // ── Transaction — บันทึกลง Google Sheet (รองรับ Multi-lot) ──
+// ── กันบันทึกซ้ำ: จำชุดที่ "ยังไม่ยืนยันสำเร็จครบ" ไว้ในเครื่อง ──
+// ถ้ารอบก่อนหมดเวลา/ไม่ทราบผล แล้วกดบันทึกข้อมูลเดิมซ้ำ จะใช้คีย์เดิม เซิร์ฟเวอร์จึงไม่เขียนซ้ำ
+const PENDING_TX_KEY='wms_pending_tx_v1';
+let pendingMem={};            // สำรองในหน่วยความจำ เผื่อ localStorage ใช้ไม่ได้
+let saveProblemShown=false;
+function readPendingMap(){try{return JSON.parse(localStorage.getItem(PENDING_TX_KEY)||'{}')||{};}catch(e){return {};}}
+function writePendingMap(m){try{localStorage.setItem(PENDING_TX_KEY,JSON.stringify(m));}catch(e){}}
+function getPendingTx(sig){
+  const p=readPendingMap()[sig]||pendingMem[sig];
+  return (p&&Date.now()-(p.t||0)<86400000)?p:null;
+}
+function savePendingTx(sig,p){
+  pendingMem[sig]=p;
+  const m=readPendingMap();m[sig]=p;
+  Object.keys(m).forEach(function(k){if(Date.now()-(m[k].t||0)>=86400000)delete m[k];});
+  writePendingMap(m);
+}
+function clearPendingTx(sig){delete pendingMem[sig];const m=readPendingMap();delete m[sig];writePendingMap(m);}
+function newBatchId(){
+  return (window.crypto&&crypto.randomUUID)?crypto.randomUUID().replace(/-/g,'').slice(0,12)
+    :(Date.now().toString(36)+Math.random().toString(36).slice(2,8));
+}
+
 function doTx(){
   const type=curTxTab;
   // เบิกออกต้องตรวจยอดจากข้อมูลคลัง ห้ามใช้ข้อมูลที่จำไว้ซึ่งอาจเก่า ต้องรอข้อมูลสดจากเซิร์ฟเวอร์ก่อน
@@ -754,10 +777,17 @@ function doTx(){
   if(!user) errs.push('กรุณาระบุผู้ควบคุม');
   if(errs.length){showToast(errs[0],false);return;}
 
+  // ลายเซ็นของรายการชุดนี้ (ไม่รวมเวลา) ใช้จับคู่กับรอบก่อนที่ยังไม่ยืนยัน
+  const sig=[type,whid,zid,sku,date,sender,user].concat(lotRows.map(function(r){return [r.lot,r.qty,r.note||'',r.furnace||''].join('~');})).join('|');
+  const existingPend=getPendingTx(sig);
+  const pendDone=existingPend?existingPend.done:[];   // ลำดับรายการที่รอบก่อนบันทึกสำเร็จแล้ว (หักยอดในจอไปแล้ว)
+
   // validate stock สำหรับ เบิกออก
   if(type==='out'){
     const rows=STOCK[whid][zid];
-    for(const lr of lotRows){
+    for(let li=0;li<lotRows.length;li++){
+      const lr=lotRows[li];
+      if(pendDone.indexOf(li)>=0)continue;   // รายการที่สำเร็จไปแล้ว ไม่ตรวจยอดซ้ำ
       const lot=lr.lot;
       const qty=lr.qty;
       const matchRows=rows.filter(function(r){return r.sku===sku&&(r.lot||'')===(lot||'');});
@@ -777,16 +807,20 @@ function doTx(){
   }
 
   const btn=document.getElementById('txSubmitBtn');
+  const btnLabel=btn.textContent;
   btn.disabled=true;
   btn.textContent='⏳ กำลังบันทึก...';
 
   const WORKER_URL='https://wms-proxy.esl-ptit.workers.dev';
   const totalRows=lotRows.length;
-  let doneCount=0;
-  let hasError=false;
 
-  // บันทึกทีละ lot row
-  // helper: fetch พร้อม timeout 15 วินาที
+  // รอบนี้ใช้คีย์เดิมถ้าเหมือนรอบก่อนที่ยังไม่ยืนยัน ไม่งั้นสร้างชุดคีย์ใหม่
+  const resumed=!!(existingPend&&existingPend.done.length);
+  const pend=existingPend||{id:newBatchId(),done:[],t:Date.now()};
+  savePendingTx(sig,pend);
+  if(existingPend)showToast('รายการนี้เหมือนรอบก่อนที่ยังไม่ยืนยัน ระบบส่งซ้ำแบบกันซ้ำให้ ถ้าบันทึกไปแล้วจะไม่เพิ่มซ้ำ',true);
+
+  // helper: fetch พร้อม timeout (45 วินาที — Apps Script ที่ช้าอาจใช้เวลานาน ตัดเร็วเกินไปทำให้ "ไม่ทราบผล" แล้วคนกดซ้ำ)
   function fetchWithTimeout(url, opts, ms){
     const controller=new AbortController();
     const tid=setTimeout(function(){controller.abort();},ms);
@@ -794,34 +828,54 @@ function doTx(){
       .finally(function(){clearTimeout(tid);});
   }
 
+  // บันทึกไม่สำเร็จ/ไม่ทราบผล: หยุดที่รายการนั้น ไม่อัปเดตจอเอง และแจ้งให้ชัด (ฟอร์มยังอยู่ กดบันทึกซ้ำได้)
+  function saveFailed(idx,err){
+    btn.disabled=false;
+    btn.textContent=btnLabel;
+    saveProblemShown=true;
+    const why=(err&&err.name==='AbortError')?'หมดเวลารอเซิร์ฟเวอร์':((err&&err.message)||'ไม่ทราบสาเหตุ');
+    setStockBanner('err','⚠️ บันทึกรายการที่ '+(idx+1)+'/'+totalRows+' ไม่สำเร็จหรือยังไม่ทราบผล ('+why+')<br>กด “บันทึก” อีกครั้งได้ ระบบกันบันทึกซ้ำให้ ห้ามคีย์เป็นรายการใหม่<button onclick="loadStockFromSheet()">ตรวจสอบข้อมูลล่าสุด</button>');
+    showToast('บันทึกไม่สำเร็จ/ไม่ทราบผล กดบันทึกซ้ำได้ ไม่ซ้ำแน่นอน',false);
+  }
+
+  // คีย์กันซ้ำของแต่ละรายการ ส่งทั้งให้ Worker (idemKey) และชีต (txId)
+  function mkTx(idx){
+    const lr=lotRows[idx];
+    const key='WMS-'+pend.id+'-'+idx;
+    return {key:WMS_KEY,type,wh:whid,zone:zid,sku,lot:lr.lot,qty:lr.qty,unit,date,time,sender,user,note:lr.note,furnace:lr.furnace||'',txId:key,idemKey:key};
+  }
+
   function saveNext(idx){
     if(idx>=totalRows){
+      clearPendingTx(sig);   // สำเร็จครบแล้ว ล้างคีย์ ครั้งต่อไปที่คีย์เหมือนเดิมถือเป็นรายการใหม่จริง
+      // อัปเดตจอครั้งเดียวตอนสำเร็จครบ (ถ้าล้มกลางทาง ฟอร์มต้องคงเดิมเพื่อกดบันทึกซ้ำได้)
+      for(let i=0;i<totalRows;i++){const l=lotRows[i];commitTx(type,whid,zid,sku,l.lot,l.qty,unit,mkTx(i),whn);}
+      if(resumed)loadStockFromSheet();   // รอบก่อนบันทึกไปบางส่วน ดึงข้อมูลจริงมาแทนกันนับซ้ำบนจอ
       btn.disabled=false;
       switchTxTab(type);
-      const doneMsg='✅ บันทึก '+totalRows+' รายการ เรียบร้อย';
-      const errMsg='⚠️ บันทึกบางรายการสำเร็จ (เช็ค internet)';
-      showToast(hasError?errMsg:doneMsg,!hasError);
+      if(saveProblemShown){saveProblemShown=false;setStockBanner(null);}
+      showToast('✅ บันทึก '+totalRows+' รายการ เรียบร้อย',true);
       return;
     }
+    if(pend.done.indexOf(idx)>=0){saveNext(idx+1);return;}   // รอบก่อนสำเร็จแล้ว ไม่ส่งซ้ำ
+
     // แสดงความคืบหน้า
-    btn.textContent='⏳ บันทึก '+(idx+1)+'/'+totalRows+'...';
+    btn.textContent='⏳ บันทึก '+(idx+1)+'/'+totalRows+'... (ห้ามปิดหน้า)';
 
     const lr=lotRows[idx];
-    const txData={key:WMS_KEY,type,wh:whid,zone:zid,sku,lot:lr.lot,qty:lr.qty,unit,date,time,sender,user,note:lr.note,furnace:lr.furnace||''};
+    const txData=mkTx(idx);
 
-    fetchWithTimeout(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(txData)},15000)
+    fetchWithTimeout(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(txData)},45000)
       .then(function(r){return r.json();})
-      .then(function(){
-        commitTx(type,whid,zid,sku,lr.lot,lr.qty,unit,txData,whn);
+      .then(function(res){
+        if(!res||res.success!==true)throw new Error((res&&res.error)||'เซิร์ฟเวอร์ไม่ยืนยันการบันทึก');
+        pend.done.push(idx);savePendingTx(sig,pend);
         // หน่วง 800ms ก่อน lot ถัดไป ป้องกัน Apps Script rate limit
         setTimeout(function(){saveNext(idx+1);},800);
       })
       .catch(function(err){
         console.error('Lot '+(idx+1)+' error:',err);
-        hasError=true;
-        // บันทึก local ไว้ก่อน แล้วไปต่อ lot ถัดไป
-        commitTx(type,whid,zid,sku,lr.lot,lr.qty,unit,txData,whn);
-        setTimeout(function(){saveNext(idx+1);},800);
+        saveFailed(idx,err);
       });
   }
   saveNext(0);
