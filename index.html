@@ -56,6 +56,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .header-left { display: flex; flex-direction: column; gap: 2px; }
 .header-title { font-size: 20px; font-weight: 700; letter-spacing: -.3px; color: var(--text); }
 .header-sub { font-size: 13px; color: var(--text3); font-family: var(--mono); }
+.stock-banner { display: none; align-items: center; gap: 10px; padding: 9px 14px; font-size: 13px; line-height: 1.4; flex-shrink: 0; }
+.stock-banner.warn { background: #fffbeb; color: #92400e; border-bottom: 1px solid #fcd34d; }
+.stock-banner.err { background: #fef2f2; color: #991b1b; border-bottom: 1px solid #fca5a5; }
+.stock-banner button, .stock-placeholder button { margin-left: auto; padding: 7px 14px; border-radius: 8px; border: 1.5px solid currentColor; background: #fff; color: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
+.stock-placeholder { padding: 48px 16px; text-align: center; color: var(--text3); font-size: 15px; line-height: 1.8; }
+.stock-placeholder button { margin: 10px 0 0; color: #1d4ed8; }
 .wh-toggle { display: flex; background: var(--bg3); border-radius: 10px; padding: 3px; gap: 3px; border: 1px solid var(--border); }
 .wh-btn { padding: 8px 18px; border-radius: 8px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; background: transparent; color: var(--text3); font-family: var(--font); transition: all .2s; }
 .wh-btn.active { background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgba(37,99,235,.35); }
@@ -300,6 +306,9 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <button class="wh-btn" onclick="switchWH('6',this)">6</button>
     </div>
   </div>
+
+  <!-- แถบสถานะการโหลดสต๊อก -->
+  <div id="stockBanner" class="stock-banner" style="display:none"></div>
 
   <!-- BODY -->
   <div class="body" id="bodyScroll">
@@ -715,6 +724,11 @@ function allSkus(){const s=new Set();WH_LIST.forEach(wh=>zidOf(wh).forEach(z=>ST
 // ── Transaction — บันทึกลง Google Sheet (รองรับ Multi-lot) ──
 function doTx(){
   const type=curTxTab;
+  // เบิกออกต้องตรวจยอดจากข้อมูลคลัง ห้ามใช้ข้อมูลที่จำไว้ซึ่งอาจเก่า ต้องรอข้อมูลสดจากเซิร์ฟเวอร์ก่อน
+  if(type==='out'&&!(lastFreshAt>0)){
+    showToast('ข้อมูลคลังยังไม่อัปเดตจากเซิร์ฟเวอร์ รอสักครู่ หรือกด "ลองใหม่" ที่แถบด้านบน',false);
+    return;
+  }
   const whid=document.getElementById('txWH').value;
   const zid=document.getElementById('txZone').value;
   const skuRaw=(document.getElementById('txSku').value||'').trim();
@@ -1000,6 +1014,13 @@ function mkMidWithNC(topIds,botIds){
 }
 function renderMap(){
   const a=document.getElementById('mapArea');a.innerHTML='';
+  // ยังไม่มีข้อมูลเลย (ไม่มีแคช และยังโหลดไม่สำเร็จ) → ห้ามวาดคลังว่าง เพราะจะเข้าใจผิดว่าของหมด
+  if(!hasStockData()){
+    a.innerHTML='<div class="stock-placeholder">'+(stockLoading
+      ?'⏳ กำลังโหลดข้อมูลคลัง...<br><span style="font-size:12px">ถ้านานเกิน 1 นาทีระบบจะลองใหม่ให้เอง</span>'
+      :'❌ ยังไม่มีข้อมูลคลัง<br><button onclick="loadStockFromSheet()">ลองใหม่</button>')+'</div>';
+    return;
+  }
   if(curWH==='6'){
     // คลัง 6: แถว F-J, ทางรถวิ่งตรงกลาง, แถว A-E, NC Hold ลอยอยู่มุมขวา
     const wrap=document.createElement('div');
@@ -1103,6 +1124,7 @@ function closeSheet(){
 
 // ── Stats ──
 function renderStats(){
+  if(!hasStockData()){document.getElementById('statsEl').innerHTML='';return;}  // ไม่มีข้อมูล = ไม่แสดงตัวเลข 0 ที่ทำให้เข้าใจผิด
   let totCap=0,totUsed=0,free=0,full=0;
   zidOf(curWH).forEach(id=>{
     totCap+=zonesOf(curWH)[id].cap;totUsed+=zUsed(curWH,id);
@@ -1883,29 +1905,121 @@ function initExportDates(){
 // ── โหลด Stock จาก Google Sheet ผ่าน Cloudflare Worker ──
 const WORKER_URL_BASE='https://wms-proxy.esl-ptit.workers.dev';
 
-function loadStockFromSheet(){
-  fetch(WORKER_URL_BASE+'?action=getStock',{headers:{'X-WMS-Key':WMS_KEY}})
-    .then(function(r){return r.json();})
-    .then(function(res){
-      if(res.success&&res.data&&res.data.length){
-        WH_LIST.forEach(function(wh){zidOf(wh).forEach(function(z){STOCK[wh][z]=[];});});
-        res.data.forEach(function(r){
-          var wh=whIdByName(r.wh);
-          if(!STOCK[wh]||!STOCK[wh][r.zone])return;
-          if(r.zone==='NC'){
-            STOCK[wh]['NC'].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||'',note:r.note||''});
-          } else if(STOCK[wh][r.zone]!==undefined){
-            STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||'',note:r.note||''});
-          }
-        });
-      }
-      fillSelects();renderMap();renderStats();renderStock();renderHist();renderTankPage();updateTime();
-    })
-    .catch(function(){
-      fillSelects();renderMap();renderStats();renderStock();renderHist();renderTankPage();updateTime();
-    });
+// ── โหลดสต๊อก: timeout + ลองใหม่อัตโนมัติ + แถบสถานะ + แสดงข้อมูลที่จำไว้ทันที ──
+// หลักการ: ห้ามวาดคลังว่างเมื่อโหลดไม่สำเร็จ ต้องบอกผู้ใช้ชัดเจนเสมอ
+const STOCK_CACHE_KEY='wms_stock_cache_v1';
+const STOCK_TIMEOUT_MS=30000;                 // รอแต่ละครั้งไม่เกิน 30 วินาที
+const STOCK_RETRY_DELAYS=[2000,5000,10000];   // ลองใหม่อีก 3 ครั้ง (รวม 4 ครั้ง)
+let lastFreshAt=0;        // เวลาที่ได้ข้อมูลสดจากเซิร์ฟเวอร์ครั้งล่าสุด (0 = ยังไม่เคยในรอบนี้)
+let stockCacheTime=0;     // เวลาของข้อมูลที่จำไว้ (0 = ไม่มี)
+let stockCacheCount=0;
+let stockLoading=false;
+let stockFirstRender=false;
+
+function hasStockData(){return lastFreshAt>0||stockCacheTime>0;}
+function fmtClock(ms){const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+
+function setStockBanner(kind,html){
+  const b=document.getElementById('stockBanner');
+  if(!b)return;
+  if(!kind){b.style.display='none';b.innerHTML='';return;}
+  b.className='stock-banner '+kind;
+  b.innerHTML=html;
+  b.style.display='flex';
 }
+
+function applyStockRows(rows){
+  WH_LIST.forEach(function(wh){
+    zidOf(wh).forEach(function(z){STOCK[wh][z]=[];});
+    STOCK[wh]['NC']=[];   // ต้องล้าง NC ด้วย ไม่งั้นโหลดซ้ำแล้วยอดซ้อน
+  });
+  rows.forEach(function(r){
+    var wh=whIdByName(r.wh);
+    if(!STOCK[wh]||!STOCK[wh][r.zone])return;
+    STOCK[wh][r.zone].push({sku:r.sku,lot:r.lot,qty:r.qty,name:'',unit:r.unit||'ถุง',date:r.date||'',furnace:r.furnace||'',note:r.note||''});
+  });
+}
+
+function loadStockCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem(STOCK_CACHE_KEY)||'null');
+    if(c&&Array.isArray(c.rows)&&c.rows.length){
+      applyStockRows(c.rows);
+      stockCacheTime=c.t||Date.now();
+      stockCacheCount=c.rows.length;
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+function saveStockCache(rows){
+  try{localStorage.setItem(STOCK_CACHE_KEY,JSON.stringify({t:Date.now(),rows:rows}));}catch(e){}
+}
+
+function renderAllStock(){
+  if(!stockFirstRender){fillSelects();stockFirstRender=true;}  // fillSelects รีเซ็ต dropdown จึงเรียกครั้งเดียว
+  renderMap();renderStats();renderStock();renderHist();renderTankPage();updateTime();
+}
+
+function fetchStockOnce(){
+  const ctrl=new AbortController();
+  const tid=setTimeout(function(){ctrl.abort();},STOCK_TIMEOUT_MS);
+  return fetch(WORKER_URL_BASE+'?action=getStock',{headers:{'X-WMS-Key':WMS_KEY},signal:ctrl.signal})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(res){
+      if(!res||!res.success||!Array.isArray(res.data))throw new Error((res&&res.error)||'ข้อมูลที่ได้รับไม่ถูกต้อง');
+      return res.data;
+    })
+    .finally(function(){clearTimeout(tid);});
+}
+
+function loadStockFromSheet(){
+  if(stockLoading)return;
+  stockLoading=true;
+  let attempt=0;
+  const total=STOCK_RETRY_DELAYS.length+1;
+  const showWait=function(extra){
+    setStockBanner('warn','⏳ '+(stockCacheTime&&!lastFreshAt?'แสดงข้อมูลที่บันทึกไว้เมื่อ '+fmtClock(stockCacheTime)+' · ':'')+'กำลังอัปเดตข้อมูลคลัง'+(extra||'')+'...');
+  };
+  showWait('');
+  function tryOnce(){
+    attempt++;
+    fetchStockOnce().then(function(rows){
+      // ได้ข้อมูลว่างทั้งที่เคยมีข้อมูล = ผิดปกติ ไม่เอามาทับ
+      if(rows.length===0&&stockCacheCount>0)throw new Error('ได้รับข้อมูลว่าง');
+      applyStockRows(rows);
+      lastFreshAt=Date.now();
+      stockCacheCount=rows.length;
+      saveStockCache(rows);
+      stockLoading=false;
+      setStockBanner(null);
+      renderAllStock();
+    }).catch(function(err){
+      console.error('getStock ครั้งที่ '+attempt+' ล้มเหลว:',err);
+      if(attempt<total){
+        showWait(' (ลองใหม่ครั้งที่ '+(attempt+1)+'/'+total+')');
+        setTimeout(tryOnce,STOCK_RETRY_DELAYS[attempt-1]);
+      }else{
+        stockLoading=false;
+        const old=lastFreshAt||stockCacheTime;
+        setStockBanner('err','❌ โหลดข้อมูลคลังไม่สำเร็จ'+(old?' · กำลังแสดงข้อมูลเก่าเมื่อ '+fmtClock(old):'')+'<button onclick="loadStockFromSheet()">ลองใหม่</button>');
+        renderAllStock();   // ถ้าไม่มีข้อมูลเลย renderMap จะแสดงข้อความแทนผังว่าง
+      }
+    });
+  }
+  tryOnce();
+}
+
+// กลับมาเปิดแอปอีกครั้งหลังพักไว้ → ดึงข้อมูลใหม่ถ้าเก่าเกิน 2 นาทีหรือยังไม่เคยโหลดสำเร็จ
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&!stockLoading&&(Date.now()-lastFreshAt)>120000)loadStockFromSheet();
+});
+
+// เริ่มต้น: วาดจากข้อมูลที่จำไว้ทันที (ถ้ามี) แล้วดึงข้อมูลสดตามมา
+fillSelects();stockFirstRender=true;
+loadStockCache();
 loadStockFromSheet();
+renderAllStock();
 loadProducts();
 // PIN Enter key
 document.getElementById('pinInput').addEventListener('keydown',function(e){
