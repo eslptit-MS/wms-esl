@@ -180,7 +180,7 @@ body { display: flex; justify-content: center; }
 .toast { position: fixed; bottom: calc(80px + var(--safe-bot)); left: 50%; transform: translateX(-50%) translateY(20px); width: calc(100% - 24px); max-width: 416px; z-index: 200; background: var(--bg2); border: 1.5px solid var(--border2); border-radius: var(--radius); padding: 14px 16px; font-size: 14.5px; font-weight: 500; opacity: 0; transition: all .3s; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.ok { border-color: #86efac; background: var(--green-bg); color: var(--green-t); }
-.toast.err { border-color: #fca5a5; background: var(--red-bg); color: var(--red-t); }
+.toast.err { pointer-events: auto; border-color: #fca5a5; background: var(--red-bg); color: var(--red-t); }
 
 /* PIN overlay — เหมือนรูปแบบใน warehouse_v32.html */
 #pinOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300; align-items: center; justify-content: center; }
@@ -557,7 +557,10 @@ function toast(msg, ok) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show ' + (ok ? 'ok' : 'err');
-  setTimeout(function(){ t.className = 'toast'; }, 3200);
+  clearTimeout(window._toastTimer);
+  // ข้อความผิดพลาดค้างไว้ 12 วินาที (แตะที่ข้อความเพื่อปิดได้) จะได้อ่านทัน
+  t.onclick = function(){ t.className = 'toast'; };
+  window._toastTimer = setTimeout(function(){ t.className = 'toast'; }, ok ? 3200 : 12000);
 }
 
 async function apiGet(action, params) {
@@ -1061,7 +1064,7 @@ function addAllocBlock(triggerEl){
   block.className = 'split-row alloc-block';
   block.innerHTML =
     '<input type="number" class="alloc-qty" value="'+defaultQty+'" min="0" style="max-width:70px" oninput="updateRemainLabel(this)">'+
-    '<select class="alloc-wh"><option value="78">คลัง 7-8</option><option value="910">คลัง 9-10</option><option value="6">คลัง 6</option></select>'+
+    '<select class="alloc-wh"><option value="">-- เลือกคลัง --</option><option value="78">คลัง 7-8</option><option value="910">คลัง 9-10</option><option value="6">คลัง 6</option></select>'+
     '<input class="alloc-zone" placeholder="Zone เช่น P, K, F">'+
     '<button class="step-btn" onclick="this.closest(\'.alloc-block\').remove();updateRemainLabel(this)" title="ลบ">✕</button>';
   list.appendChild(block);
@@ -1077,6 +1080,7 @@ async function confirmTrip(btn){
   const card = btn.closest('.pend-card');
   const allocations = [];
   let invalid = false;
+  let invalidWh = false;
   card.querySelectorAll('.trip-lot-row').forEach(function(row){
     const rowId = row.dataset.rowid;
     row.querySelectorAll('.alloc-block').forEach(function(block){
@@ -1084,10 +1088,12 @@ async function confirmTrip(btn){
       const wh = block.querySelector('.alloc-wh').value;
       const zone = block.querySelector('.alloc-zone').value.trim();
       if (qty <= 0) return; // ไม่กรอก/เป็น 0 = ยังไม่จัดเก็บส่วนนี้ตอนนี้
+      if (!wh) { invalidWh = true; return; }
       if (!zone) { invalid = true; return; }
       allocations.push({ rowId: rowId, qty: qty, wh: wh, zone: zone });
     });
   });
+  if (invalidWh) { toast('เลือกคลังปลายทางให้ครบทุกช่องที่มีจำนวน', false); return; }
   if (invalid) { toast('กรอกโซนปลายทางให้ครบทุกช่องที่มีจำนวน', false); return; }
   if (!allocations.length) { toast('ยังไม่ได้จัดเก็บรายการใดเลย (จำนวนเป็น 0 ทั้งหมด)', false); return; }
 
