@@ -604,7 +604,12 @@ async function apiPost(body) {
     cache: 'no-store',
     body: JSON.stringify(payload)
   });
-  return res.json();
+  const out = await res.json();
+  if (out && out.cached) {
+    // ระบบตอบจากคำขอเดิมที่เคยสำเร็จ (ไม่ได้บันทึกใหม่) — เตือนให้ตรวจ ไม่ให้เข้าใจว่าบันทึกแล้ว
+    setTimeout(function(){ toast('⚠ ผลนี้มาจากคำขอเดิมที่เคยทำไว้ ไม่ได้บันทึกใหม่ ถ้าไม่ตรงกับที่คาด แจ้งผู้ดูแล', false); }, 400);
+  }
+  return out;
 }
 
 // ── Nav ──
