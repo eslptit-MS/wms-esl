@@ -1581,7 +1581,15 @@ function scPump(){
 }
 async function scReadOne(row){
   try {
-    var out = await apiPost({ action: 'scanTag', image: row.dataUrl });
+    var ctl = new AbortController();
+    var timer = setTimeout(function(){ ctl.abort(); }, 70000);
+    var out;
+    try {
+      var resp = await fetch(WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', signal: ctl.signal,
+        body: JSON.stringify({ key: WMS_KEY, token: authToken, action: 'scanTag', image: row.dataUrl }) });
+      out = await resp.json();
+    } catch (e) { throw new Error(e.name === 'AbortError' ? 'หมดเวลา (เกิน 70 วินาที)' : ('เชื่อมต่อไม่ได้: ' + e.message)); }
+    finally { clearTimeout(timer); }
     if (!out.success) throw new Error(out.error || 'อ่านไม่สำเร็จ');
     var t = out.tag || {};
     row.f = { furnace: t.furnace || '', cl: t.cl || '', date: t.date || '', team: t.team || '', mole: t.mole == null ? '' : t.mole,
