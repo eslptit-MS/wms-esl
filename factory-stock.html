@@ -204,6 +204,36 @@ body { display: flex; justify-content: center; }
   #saleDocPrintArea { border: none !important; box-shadow: none !important; padding: 0 !important; }
   .app { max-width: 100% !important; }
 }
+/* ── สแกนป้าย ── */
+.sc-top { display:flex; gap:8px; margin-bottom:10px; }
+.sc-top .btn { padding:13px; font-size:15px; }
+.btn-ghost { background: var(--bg2); color: var(--accent); border: 1.5px solid var(--accent); }
+.sc-prog { font-size:13px; color:var(--text2); margin:6px 0; font-family:var(--mono); }
+.sc-chips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.sc-chip { border:1.5px solid var(--border2); background:var(--bg2); border-radius:20px; padding:5px 11px; font-size:12.5px; font-weight:700; color:var(--text2); font-family:var(--font); }
+.sc-chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.sc-bulk { display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px; margin-bottom:10px; font-size:12.5px; }
+.sc-bulk select, .sc-bulk button { font-family:var(--font); font-size:12.5px; padding:6px 8px; border-radius:8px; border:1.5px solid var(--border2); background:var(--bg2); }
+.sc-card { background:var(--bg2); border:1.5px solid var(--border); border-radius:var(--radius); padding:10px; margin-bottom:8px; }
+.sc-card.warn { border-color:#fcd34d; background:var(--amber-bg); }
+.sc-card.bad { border-color:#fca5a5; background:var(--red-bg); }
+.sc-head { display:flex; gap:8px; align-items:center; }
+.sc-thumb { width:56px; height:56px; border-radius:8px; object-fit:cover; background:var(--bg3); border:1px solid var(--border2); flex-shrink:0; }
+.sc-thumb.none { display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text3); }
+.sc-lot { flex:1; min-width:0; font-family:var(--mono); font-weight:700; font-size:17px; padding:8px; border:1.5px solid var(--border2); border-radius:8px; background:var(--bg3); width:100%; }
+.sc-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }
+.sc-grid label { display:block; font-size:10.5px; color:var(--text3); font-weight:700; margin-bottom:2px; }
+.sc-grid input, .sc-grid select, .sc-colsel { width:100%; font-family:var(--mono); font-size:14px; padding:7px 6px; border:1.5px solid var(--border2); border-radius:8px; background:var(--bg3); }
+.sc-colsel { width:84px; font-family:var(--font); font-weight:700; }
+.sc-flags { font-size:12px; margin-top:6px; color:var(--amber-t); font-weight:600; }
+.sc-card.bad .sc-flags { color:var(--red-t); }
+.sc-del { border:none; background:transparent; font-size:18px; color:var(--text3); padding:4px; }
+.sc-sum { width:100%; border-collapse:collapse; font-size:13px; }
+.sc-sum th, .sc-sum td { border-bottom:1px solid var(--border); padding:5px 4px; text-align:center; }
+.sc-sum td:first-child, .sc-sum th:first-child { text-align:left; font-family:var(--mono); font-weight:700; }
+.sc-draft { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 0; border-top:1px dashed var(--border); font-size:13px; }
+.sc-zoom { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:300; display:flex; align-items:center; justify-content:center; }
+.sc-zoom img { max-width:96%; max-height:92%; border-radius:8px; }
 </style>
 </head>
 <body>
@@ -403,6 +433,32 @@ body { display: flex; justify-content: center; }
       <div id="historyList"></div>
     </div>
 
+    <!-- ================= PAGE: SCAN (สแกนป้าย Tag) ================= -->
+    <div class="page" id="page-scan">
+      <div class="sc-top">
+        <button class="btn btn-out" onclick="document.getElementById('scFile').click()">📷 เพิ่มรูปป้าย</button>
+        <button class="btn btn-ghost" onclick="scReset()" style="max-width:96px;">เริ่มใหม่</button>
+      </div>
+      <input type="file" id="scFile" accept="image/*" multiple style="display:none;" onchange="scAddFiles(this.files); this.value='';">
+      <div class="hint" style="font-size:12px;color:var(--text3);margin-bottom:6px;">เลือกได้ทีละหลายรูป (สูงสุด 60 ใบต่อเที่ยว) ถ่ายให้ไม่มีแสงสะท้อน ระบบอ่านให้แล้วต้องตรวจทานก่อนบันทึก ขั้นนี้ยังไม่ตัดสต๊อกและยังไม่แจ้งย้าย</div>
+      <div class="sc-prog" id="scProg"></div>
+      <div class="sc-chips" id="scChips"></div>
+      <div class="sc-bulk" id="scBulk" style="display:none;">
+        <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="scAll" onchange="scToggleAll(this.checked)"> เลือกทั้งหมดที่แสดง</label>
+        <select id="scBulkColor"><option value="">สีป้าย…</option><option>ฟ้า</option><option>ขาว</option><option>อื่นๆ</option></select>
+        <button onclick="scBulkColor()">ตั้งสีให้ที่เลือก</button>
+        <input id="scBulkFurn" placeholder="เตา" inputmode="numeric" style="width:48px;font-family:var(--mono);padding:6px;border:1.5px solid var(--border2);border-radius:8px;">
+        <button onclick="scBulkFurnace()">ตั้งเตา</button>
+        <button onclick="scBulkDelete()" style="color:var(--red-t);">ลบที่เลือก</button>
+      </div>
+      <div id="scList"></div>
+      <div class="sec-title">สรุปนับต่อ Lot (1 ใบ = 1 ถุง)</div>
+      <div class="form-card" id="scSummary" style="padding:10px;"></div>
+      <button class="btn btn-in" id="scSaveBtn" onclick="scSaveDraft()" disabled>💾 บันทึกเป็นร่างเที่ยว</button>
+      <div class="sec-title">ร่างที่บันทึกไว้</div>
+      <div class="form-card" id="scDrafts" style="padding:10px 14px;">กำลังโหลด…</div>
+    </div>
+
     <!-- ================= PAGE: USERS (admin only) ================= -->
     <div class="page" id="page-users">
       <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center;">
@@ -435,6 +491,9 @@ body { display: flex; justify-content: center; }
     </button>
     <button class="nav-btn" data-page="history" data-title="ประวัติทั้งหมด" data-pin="1">
       <div class="nav-ic">🕘</div>ประวัติ
+    </button>
+    <button class="nav-btn" data-page="scan" data-title="สแกนป้าย Tag" data-pin="1">
+      <div class="nav-ic">📷</div>สแกน
     </button>
     <button class="nav-btn" id="nav-users-btn" data-page="users" data-title="จัดการผู้ใช้" data-admin="1" style="display:none;">
       <div class="nav-ic">👤</div>ผู้ใช้
@@ -646,6 +705,7 @@ function goToPage(btn){
   if (btn.dataset.page === 'history') loadHistory();
   if (btn.dataset.page === 'sale') loadSaleBatches();
   if (btn.dataset.page === 'users') loadUsers();
+  if (btn.dataset.page === 'scan') { scRender(); scLoadDrafts(); }
 }
 function submitPin(){
   const val = document.getElementById('pinInput').value;
@@ -1456,6 +1516,275 @@ async function deleteRow(id){
 // ── Init ──
 updateAuthUI();
 loadFactoryStock();
+
+// ═══════════ สแกนป้าย Tag ═══════════
+var scRows = [];       // {uid,file,key,thumb,dataUrl,status,err,f:{},sel,raw,warnAck}
+var scBatchId = null;
+var scFilter = 'all';
+var scBusy = 0;
+var scQueue = [];
+var SC_MAX = 60;
+
+function scEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function scMakeBatchId(){
+  var d = new Date(), p = function(n){ return String(n).padStart(2,'0'); };
+  return 'SCAN-' + d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+function scEmptyF(){ return { furnace:'', cl:'', date:'', team:'', mole:'', lot:'', weightKg:'', tagColor:'', colorTicked:'' }; }
+
+function scLoadImage(file){
+  return new Promise(function(resolve, reject){
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function(){ URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('เปิดรูปไม่ได้')); };
+    img.src = url;
+  });
+}
+function scDraw(img, maxSide, q){
+  var w = img.naturalWidth, h = img.naturalHeight, k = Math.min(1, maxSide / Math.max(w, h));
+  var c = document.createElement('canvas');
+  c.width = Math.round(w * k); c.height = Math.round(h * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', q);
+}
+
+async function scAddFiles(fileList){
+  var files = Array.prototype.slice.call(fileList || []);
+  if (!files.length) return;
+  if (!scBatchId) scBatchId = scMakeBatchId();
+  var room = SC_MAX - scRows.length;
+  if (files.length > room) { toast('เกิน ' + SC_MAX + ' ใบต่อเที่ยว รับเพิ่มได้อีก ' + Math.max(room,0) + ' รูป', false); files = files.slice(0, Math.max(room,0)); }
+  for (var i = 0; i < files.length; i++){
+    var f = files[i];
+    var key = f.name + '|' + f.size + '|' + f.lastModified;
+    var row = { uid: 'r' + Date.now() + '_' + i + '_' + Math.floor(Math.random()*1000), file: f.name, key: key, thumb: '', dataUrl: '', status: 'wait', err: '', f: scEmptyF(), sel: false, raw: '' };
+    scRows.push(row);
+    try {
+      var img = await scLoadImage(f);
+      row.dataUrl = scDraw(img, 1280, 0.85);
+      row.thumb = scDraw(img, 200, 0.7);
+    } catch (e) { row.status = 'err'; row.err = e.message; }
+    if (row.status === 'wait') scQueue.push(row);
+    scRender();
+  }
+  scPump();
+}
+function scPump(){
+  while (scBusy < 3 && scQueue.length){
+    var row = scQueue.shift();
+    scBusy++;
+    row.status = 'reading';
+    scRender();
+    scReadOne(row).then(function(){ scBusy--; scPump(); scRender(); });
+  }
+}
+async function scReadOne(row){
+  try {
+    var out = await apiPost({ action: 'scanTag', image: row.dataUrl });
+    if (!out.success) throw new Error(out.error || 'อ่านไม่สำเร็จ');
+    var t = out.tag || {};
+    row.f = { furnace: t.furnace || '', cl: t.cl || '', date: t.date || '', team: t.team || '', mole: t.mole == null ? '' : t.mole,
+              lot: t.lot || '', weightKg: t.weightKg == null ? '' : t.weightKg, tagColor: t.tagColor || '', colorTicked: t.colorTicked || '' };
+    row.raw = out.raw || '';
+    row.status = 'ok'; row.err = '';
+  } catch (e) { row.status = 'err'; row.err = e.message; }
+}
+function scRetry(uid){
+  var r = scRows.filter(function(x){ return x.uid === uid; })[0];
+  if (!r || !r.dataUrl) return;
+  r.status = 'wait'; scQueue.push(r); scRender(); scPump();
+}
+
+function scFlags(r){
+  var fl = [], f = r.f, today = new Date().toISOString().slice(0,10);
+  if (r.status === 'err') fl.push({ bad:1, t: 'อ่านไม่สำเร็จ (' + r.err + ') กรอกเองหรือกดอ่านใหม่' });
+  if (r.status === 'wait' || r.status === 'reading') return fl;
+  if (!/^\d{4}\/\d{3}$/.test(f.lot || '')) fl.push({ bad:1, t: 'Lot ไม่ครบหรือผิดรูปแบบ (ต้องเป็น 2610/149)' });
+  var m = parseFloat(f.mole);
+  if (!isFinite(m) || m < 2 || m > 4) fl.push({ bad:1, t: 'Mole ว่างหรือผิดปกติ' });
+  if (!f.date) fl.push({ bad:1, t: 'วันที่ว่างหรืออ่านไม่ได้' });
+  else if (f.date > today) fl.push({ bad:1, t: 'วันที่เป็นอนาคต' });
+  else if ((new Date(today) - new Date(f.date)) / 86400000 > 60) fl.push({ t: 'วันที่เก่ากว่า 60 วัน' });
+  if (!f.tagColor) fl.push({ t: 'ยังไม่ระบุสีป้าย' });
+  if (!f.furnace) fl.push({ t: 'ไม่ระบุเตา' });
+  if (f.cl && f.cl !== '3.2') fl.push({ t: 'CL = ' + f.cl + ' (ไม่ใช่ 3.2)' });
+  if (!f.team) fl.push({ t: 'ไม่ระบุทีม' });
+  var dup = scRows.filter(function(x){ return x !== r && x.key === r.key; }).length;
+  if (dup) fl.push({ t: 'รูปไฟล์เดียวกับอีกแถว (อาจเพิ่มซ้ำ)' });
+  return fl;
+}
+function scNeedsCheck(r){ return scFlags(r).length > 0 || r.status !== 'ok'; }
+function scVisible(){
+  return scRows.filter(function(r){
+    if (scFilter === 'all') return true;
+    if (scFilter === 'blue') return r.f.tagColor === 'ฟ้า';
+    if (scFilter === 'white') return r.f.tagColor === 'ขาว';
+    if (scFilter === 'other') return r.f.tagColor !== 'ฟ้า' && r.f.tagColor !== 'ขาว';
+    if (scFilter === 'warn') return scNeedsCheck(r);
+    return true;
+  });
+}
+function scSetFilter(k){ scFilter = k; scRender(); }
+
+function scField(uid, key, val){
+  var r = scRows.filter(function(x){ return x.uid === uid; })[0]; if (!r) return;
+  if (key === 'lot') {
+    val = String(val).trim();
+    var m = val.match(/^(\d{4})\D{0,3}(\d{1,3})$/);   // พิมพ์ 2610149 / 2610 149 / 2610/49 ก็แปลงให้
+    if (m) val = m[1] + '/' + m[2].padStart(3,'0');
+  }
+  if (key === 'mole') val = String(val).replace(',', '.');
+  r.f[key] = val;
+  scRender();
+}
+function scSel(uid, on){ var r = scRows.filter(function(x){ return x.uid === uid; })[0]; if (r) { r.sel = on; scRenderBulkState(); } }
+function scToggleAll(on){ scVisible().forEach(function(r){ r.sel = on; }); scRender(); }
+function scSelected(){ return scRows.filter(function(r){ return r.sel; }); }
+function scBulkColor(){
+  var v = document.getElementById('scBulkColor').value, s = scSelected();
+  if (!v) { toast('เลือกสีป้ายก่อน', false); return; }
+  if (!s.length) { toast('ยังไม่ได้เลือกแถว', false); return; }
+  s.forEach(function(r){ r.f.tagColor = v; }); scRender();
+}
+function scBulkFurnace(){
+  var v = String(document.getElementById('scBulkFurn').value || '').replace(/\D/g,''), s = scSelected();
+  if (!v) { toast('ใส่เลขเตาก่อน', false); return; }
+  if (!s.length) { toast('ยังไม่ได้เลือกแถว', false); return; }
+  s.forEach(function(r){ r.f.furnace = v; }); scRender();
+}
+function scBulkDelete(){
+  var s = scSelected();
+  if (!s.length) { toast('ยังไม่ได้เลือกแถว', false); return; }
+  if (!confirm('ลบ ' + s.length + ' แถวที่เลือก?')) return;
+  scRows = scRows.filter(function(r){ return !r.sel; });
+  scQueue = scQueue.filter(function(r){ return scRows.indexOf(r) !== -1; });
+  scRender();
+}
+function scDelOne(uid){
+  scRows = scRows.filter(function(r){ return r.uid !== uid; });
+  scQueue = scQueue.filter(function(r){ return r.uid !== uid; });
+  scRender();
+}
+function scZoom(uid){
+  var r = scRows.filter(function(x){ return x.uid === uid; })[0];
+  if (!r || !r.dataUrl) return;
+  var d = document.createElement('div'); d.className = 'sc-zoom';
+  d.innerHTML = '<img src="' + r.dataUrl + '">';
+  d.onclick = function(){ d.remove(); };
+  document.body.appendChild(d);
+}
+function scReset(){
+  if (scRows.length && !confirm('ล้างรายการที่ยังไม่ได้บันทึกทั้งหมด?')) return;
+  scRows = []; scQueue = []; scBatchId = null; scFilter = 'all'; scRender();
+}
+
+function scRenderBulkState(){
+  var vis = scVisible(), all = document.getElementById('scAll');
+  if (all) all.checked = vis.length > 0 && vis.every(function(r){ return r.sel; });
+}
+function scRender(){
+  var total = scRows.length;
+  var reading = scRows.filter(function(r){ return r.status === 'reading' || r.status === 'wait'; }).length;
+  var done = scRows.filter(function(r){ return r.status === 'ok'; }).length;
+  var errs = scRows.filter(function(r){ return r.status === 'err'; }).length;
+  document.getElementById('scProg').textContent = total ? ('ทั้งหมด ' + total + ' ใบ · อ่านแล้ว ' + done + (reading ? ' · กำลังอ่าน ' + reading : '') + (errs ? ' · อ่านไม่ได้ ' + errs : '') + (scBatchId ? ' · ' + scBatchId : '')) : '';
+  var cnt = function(fn){ return scRows.filter(fn).length; };
+  var chips = [['all','ทั้งหมด',total],['blue','ฟ้า (ขาย)',cnt(function(r){return r.f.tagColor==='ฟ้า';})],['white','ขาว (ต้ม)',cnt(function(r){return r.f.tagColor==='ขาว';})],
+    ['other','อื่นๆ/ไม่ระบุ',cnt(function(r){return r.f.tagColor!=='ฟ้า'&&r.f.tagColor!=='ขาว';})],['warn','⚠ ต้องตรวจ',cnt(scNeedsCheck)]];
+  document.getElementById('scChips').innerHTML = total ? chips.map(function(c){
+    return '<button class="sc-chip' + (scFilter===c[0]?' active':'') + '" onclick="scSetFilter(\'' + c[0] + '\')">' + c[1] + ' ' + c[2] + '</button>'; }).join('') : '';
+  document.getElementById('scBulk').style.display = total ? 'flex' : 'none';
+  var vis = scVisible();
+  document.getElementById('scList').innerHTML = vis.map(scCardHtml).join('') || (total ? '<div class="zone-empty">ไม่มีรายการในตัวกรองนี้</div>' : '<div class="zone-empty">ยังไม่มีรูป กด "เพิ่มรูปป้าย"</div>');
+  scRenderBulkState();
+  scRenderSummary();
+  var okRows = scRows.filter(function(r){ return r.status === 'ok' || (r.status === 'err' && r.f.lot); }).length;
+  document.getElementById('scSaveBtn').disabled = !okRows || reading > 0;
+}
+function scCardHtml(r){
+  var fl = scFlags(r), bad = fl.some(function(x){ return x.bad; });
+  var f = r.f, u = r.uid;
+  var th = r.thumb ? '<img class="sc-thumb" src="' + r.thumb + '" onclick="scZoom(\'' + u + '\')">' : '<div class="sc-thumb none">ไม่มีรูป</div>';
+  var st = r.status === 'reading' ? '<div class="sc-flags" style="color:var(--accent);">⏳ กำลังอ่าน…</div>'
+         : r.status === 'wait' ? '<div class="sc-flags" style="color:var(--text3);">รอคิวอ่าน…</div>' : '';
+  var inp = function(k, lab, extra){ return '<div><label>' + lab + '</label><input value="' + scEsc(f[k]) + '" ' + (extra||'') + ' onchange="scField(\'' + u + '\',\'' + k + '\',this.value)"></div>'; };
+  return '<div class="sc-card' + (bad ? ' bad' : (fl.length ? ' warn' : '')) + '">' +
+    '<div class="sc-head"><input type="checkbox" ' + (r.sel ? 'checked' : '') + ' onchange="scSel(\'' + u + '\',this.checked)">' + th +
+    '<input class="sc-lot" value="' + scEsc(f.lot) + '" placeholder="Lot 2610/149" onchange="scField(\'' + u + '\',\'lot\',this.value)">' +
+    '<select class="sc-colsel" onchange="scField(\'' + u + '\',\'tagColor\',this.value)">' +
+      ['','ฟ้า','ขาว','อื่นๆ'].map(function(c){ return '<option value="' + c + '"' + (f.tagColor===c?' selected':'') + '>' + (c||'สีป้าย?') + '</option>'; }).join('') + '</select>' +
+    '<button class="sc-del" onclick="scDelOne(\'' + u + '\')">✕</button></div>' +
+    '<div class="sc-grid">' + inp('furnace','เตา','inputmode="numeric"') + inp('date','วันที่ (YYYY-MM-DD)') + inp('mole','Mole','inputmode="decimal"') +
+      inp('team','ทีม') + inp('cl','CL') + inp('weightKg','น้ำหนัก kg','inputmode="decimal"') + '</div>' +
+    st + fl.map(function(x){ return '<div class="sc-flags">' + (x.bad ? '⛔ ' : '⚠ ') + scEsc(x.t) + '</div>'; }).join('') +
+    (r.status === 'err' && r.dataUrl ? '<button class="sc-chip" style="margin-top:6px;" onclick="scRetry(\'' + u + '\')">↻ อ่านใหม่</button>' : '') +
+    '</div>';
+}
+function scRenderSummary(){
+  var m = {}, tot = { 'ฟ้า':0, 'ขาว':0, 'อื่นๆ':0 };
+  scRows.forEach(function(r){
+    if (r.status !== 'ok' && !r.f.lot) return;
+    var lot = r.f.lot || '(ไม่ทราบ Lot)', c = (r.f.tagColor === 'ฟ้า' || r.f.tagColor === 'ขาว') ? r.f.tagColor : 'อื่นๆ';
+    m[lot] = m[lot] || { 'ฟ้า':0, 'ขาว':0, 'อื่นๆ':0 };
+    m[lot][c]++; tot[c]++;
+  });
+  var lots = Object.keys(m).sort();
+  if (!lots.length) { document.getElementById('scSummary').innerHTML = '<div class="zone-empty">ยังไม่มีข้อมูล</div>'; return; }
+  var sum = function(o){ return o['ฟ้า'] + o['ขาว'] + o['อื่นๆ']; };
+  document.getElementById('scSummary').innerHTML = '<table class="sc-sum"><tr><th>Lot</th><th>ฟ้า</th><th>ขาว</th><th>อื่นๆ</th><th>รวม</th></tr>' +
+    lots.map(function(l){ var o = m[l]; return '<tr><td>' + scEsc(l) + '</td><td>' + (o['ฟ้า']||'') + '</td><td>' + (o['ขาว']||'') + '</td><td>' + (o['อื่นๆ']||'') + '</td><td><b>' + sum(o) + '</b></td></tr>'; }).join('') +
+    '<tr><td>รวม ' + lots.length + ' Lot</td><td>' + tot['ฟ้า'] + '</td><td>' + tot['ขาว'] + '</td><td>' + tot['อื่นๆ'] + '</td><td><b>' + sum(tot) + '</b></td></tr></table>';
+}
+
+async function scSaveDraft(){
+  var rows = scRows.filter(function(r){ return r.status === 'ok' || (r.status === 'err' && r.f.lot); });
+  if (!rows.length) return;
+  var bad = rows.filter(function(r){ return scFlags(r).some(function(x){ return x.bad; }); }).length;
+  if (bad && !confirm('ยังมี ' + bad + ' แถวที่มีรายการผิดปกติระดับ ⛔ บันทึกเป็นร่างต่อไหม (ยังแก้ภายหลังได้)?')) return;
+  var btn = document.getElementById('scSaveBtn'); btn.disabled = true;
+  try {
+    var payload = rows.map(function(r){ return { tagColor: r.f.tagColor, furnace: r.f.furnace, cl: r.f.cl, date: r.f.date, team: r.f.team,
+      mole: r.f.mole, lot: r.f.lot, weightKg: r.f.weightKg, file: r.file, note: '', raw: r.raw }; });
+    var out = await apiPost({ action: 'saveScanBatch', batchId: scBatchId, rows: payload });
+    if (!out.success) throw new Error(out.error || 'บันทึกไม่สำเร็จ');
+    toast('บันทึกร่าง ' + scBatchId + ' (' + out.count + ' ใบ) แล้ว', true);
+    scLoadDrafts();
+  } catch (e) { toast('บันทึกร่างไม่สำเร็จ: ' + e.message, false); }
+  btn.disabled = false;
+}
+async function scLoadDrafts(){
+  var box = document.getElementById('scDrafts');
+  try {
+    var out = await apiGet('getScanBatches');
+    var d = out.data || [];
+    box.innerHTML = d.length ? d.map(function(b){
+      var t = (b.created_at || '').replace('T',' ').slice(0,16);
+      return '<div class="sc-draft"><div><b style="font-family:var(--mono);">' + scEsc(b.batch_id) + '</b><br><span style="color:var(--text3);">' + scEsc(t) + ' · ' + b.n + ' ใบ (ฟ้า ' + b.blue + ' / ขาว ' + b.white + ') · ' + scEsc(b.status) + '</span></div>' +
+        '<div style="display:flex;gap:6px;"><button class="sc-chip" onclick="scOpenDraft(\'' + scEsc(b.batch_id) + '\')">เปิด</button>' +
+        (b.status === 'ร่าง' ? '<button class="sc-chip" style="color:var(--red-t);" onclick="scDeleteDraft(\'' + scEsc(b.batch_id) + '\')">ลบ</button>' : '') + '</div></div>';
+    }).join('') : '<div class="zone-empty">ยังไม่มีร่าง</div>';
+  } catch (e) { box.textContent = 'โหลดร่างไม่สำเร็จ: ' + e.message; }
+}
+async function scOpenDraft(id){
+  if (scRows.length && !confirm('การเปิดร่างจะแทนที่รายการที่กำลังทำอยู่ ทำต่อไหม?')) return;
+  try {
+    var out = await apiGet('getScanBatch', { batchId: id });
+    scRows = (out.data || []).map(function(x, i){
+      return { uid: 'd' + i + '_' + Math.floor(Math.random()*100000), file: x.file || '', key: 'draft' + i, thumb: '', dataUrl: '', status: 'ok', err: '', sel: false, raw: '',
+        f: { furnace: x.furnace || '', cl: x.cl || '', date: x.date || '', team: x.team || '', mole: x.mole == null ? '' : x.mole, lot: x.lot || '',
+             weightKg: x.weightKg == null ? '' : x.weightKg, tagColor: x.tagColor || '', colorTicked: '' } };
+    });
+    scBatchId = id; scFilter = 'all'; scRender();
+    toast('เปิดร่าง ' + id + ' แล้ว (ร่างที่บันทึกไว้ไม่มีรูป)', true);
+    window.scrollTo(0, 0);
+  } catch (e) { toast('เปิดร่างไม่สำเร็จ: ' + e.message, false); }
+}
+async function scDeleteDraft(id){
+  if (!confirm('ลบร่าง ' + id + ' ?')) return;
+  try { await apiPost({ action: 'deleteScanBatch', batchId: id }); scLoadDrafts(); }
+  catch (e) { toast('ลบไม่สำเร็จ: ' + e.message, false); }
+}
 </script>
 </body>
 </html>
